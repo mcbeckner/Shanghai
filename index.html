@@ -3,26 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Shanghai Pro Elite</title>
+    <title>Shanghai Pro iPhone</title>
     <style>
         :root {
             --primary: #2c3e50; --accent: #27ae60; --danger: #e74c3c;
             --warning: #f39c12; --light: #f8f9fa; --blue: #3498db;
         }
-        body { font-family: sans-serif; margin: 0; background: #eee; touch-action: manipulation; }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: #eee; touch-action: manipulation; }
         .hidden { display: none !important; }
         
         /* Navigation & Timer */
-        .nav { display: flex; background: var(--primary); padding: 5px; align-items: center;}
-        .nav button { flex: 1; padding: 12px; color: white; background: none; border: none; font-weight: bold; }
+        .nav { display: flex; background: var(--primary); padding: 5px; align-items: center; position: sticky; top:0; z-index: 100;}
+        .nav button { flex: 1; padding: 10px; color: white; background: none; border: none; font-weight: bold; }
         .nav button.active { border-bottom: 4px solid var(--accent); }
-        #gameTimer { color: #f1c40f; font-family: monospace; font-size: 1.2em; padding-right: 10px; }
+        #gameTimer { color: #f1c40f; font-family: monospace; font-size: 1.1em; padding-right: 10px; min-width: 80px; text-align: right;}
 
         /* Setup Screen */
         #setupView { padding: 20px; text-align: center; }
         .player-chip { 
-            display: inline-block; padding: 15px 25px; margin: 5px; 
-            border-radius: 25px; background: white; border: 2px solid #ccc;
+            display: inline-block; padding: 12px 20px; margin: 5px; 
+            border-radius: 20px; background: white; border: 2px solid #ccc; font-weight: bold;
         }
         .player-chip.selected { background: var(--accent); color: white; border-color: var(--accent); }
 
@@ -31,29 +31,43 @@
         #streakBanner {
             position: fixed; top:0; left:0; width:100%; height:100%; z-index: 9999;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            animation: flashRed 0.2s infinite; text-align: center; color: black; font-weight: 900;
+            animation: flashRed 0.2s infinite; text-align: center; padding: 20px; box-sizing: border-box;
         }
 
         /* Table UI */
-        .table-wrap { overflow-x: auto; background: white; }
-        table { border-collapse: collapse; width: 100%; min-width: 600px; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; font-size: 0.9em; }
-        th { background: #f4f4f4; position: sticky; top: 0; }
-        .sticky-col { position: sticky; left: 0; background: #eee; font-weight: bold; z-index: 5; }
+        .table-wrap { overflow-x: auto; background: white; -webkit-overflow-scrolling: touch; }
+        table { border-collapse: collapse; width: 100%; min-width: 500px; }
+        th, td { border: 1px solid #ccc; padding: 6px; text-align: center; font-size: 0.85em; }
+        th { background: #f4f4f4; }
+        .sticky-col { position: sticky; left: 0; background: #eee; font-weight: bold; z-index: 5; border-right: 2px solid #999; }
         .sh-cell { background: var(--warning) !important; color: white; }
         .low-score { background: #2ecc71 !important; color: white; }
         .high-score { background: #e74c3c !important; color: white; }
         .total-row { background: #e8e8e8; font-weight: bold; }
-        .cut-row { background: #d1ecf1; font-size: 0.8em; }
+        .cut-row { background: #d1ecf1; font-size: 0.75em; }
 
-        /* Keypad */
+        /* KEYPAD OPTIMIZATION */
         #keypadModal {
             position: fixed; bottom: 0; left: 0; width: 100%; background: #34495e;
-            padding: 10px; box-sizing: border-box; z-index: 1000; border-radius: 20px 20px 0 0;
+            padding: 8px; box-sizing: border-box; z-index: 1000; 
+            border-radius: 15px 15px 0 0; box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
         }
-        .kp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-        .kp-grid button { padding: 20px; font-size: 1.5em; border-radius: 10px; border: none; background: white; }
+        .kp-header { display: flex; justify-content: space-between; align-items: center; color: white; margin-bottom: 5px; }
+        .kp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .kp-grid button { 
+            padding: 12px; font-size: 1.2em; border-radius: 8px; border: none; background: white; font-weight: bold;
+            -webkit-appearance: none;
+        }
+        .btn-sh { background: var(--warning) !important; color: white; }
         .btn-ent { background: var(--accent) !important; color: white; grid-column: span 2; }
+        
+        /* Landscape specific tweaks */
+        @media (orientation: landscape) {
+            .kp-grid { grid-template-columns: repeat(6, 1fr); }
+            .btn-ent { grid-column: span 2; }
+            #keypadModal { padding: 5px; }
+            .kp-grid button { padding: 8px; font-size: 1em; }
+        }
 
         /* Stats Coloring */
         .stat-best { background: rgba(46, 204, 113, 0.4) !important; font-weight: bold; }
@@ -71,16 +85,14 @@
 
 <!-- STREAK BANNER -->
 <div id="streakBanner" class="hidden">
-    <h1 id="streakText" style="font-size: 3em;"></h1>
-    <button onclick="dismissBanner()" style="padding: 20px 40px; font-size: 1.5em; background: white; border: 5px solid black; border-radius: 15px; font-weight: bold;">Ok, we'll Shanghai them!</button>
+    <h1 id="streakText" style="font-size: 2em; margin-bottom: 20px;"></h1>
+    <button onclick="dismissBanner()" style="padding: 15px 30px; font-size: 1.2em; background: white; border: 4px solid black; border-radius: 12px; font-weight: bold;">Ok, we'll Shanghai them!</button>
 </div>
 
 <div id="setupView">
-    <h2>Who is playing?</h2>
+    <h2 style="margin: 10px 0;">Who is playing?</h2>
     <div id="playerSelectContainer"></div>
-    <button onclick="checkStreaksAndStart()" style="margin-top:20px; padding: 15px 40px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold;">START GAME</button>
-    <br><br>
-    <button style="background: #95a5a6; color: white; border: none; padding: 8px; border-radius: 5px;" onclick="generateTestData()">Generate Test Data</button>
+    <button onclick="checkStreaksAndStart()" style="margin-top:20px; width: 80%; padding: 18px; background: var(--accent); color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 1.1em;">START GAME</button>
 </div>
 
 <div id="gameView" class="hidden">
@@ -90,29 +102,33 @@
             <tbody id="gameBody"></tbody>
         </table>
     </div>
-    <button onclick="finalizeGame()" style="width:100%; padding: 20px; background: var(--primary); color: white; border: none; font-weight: bold;">FINISH & SAVE GAME</button>
+    <button onclick="finalizeGame()" style="width:100%; padding: 18px; background: var(--primary); color: white; border: none; font-weight: bold; margin-top: 10px;">FINISH GAME</button>
 </div>
 
 <div id="statsView" class="hidden">
     <div class="table-wrap" id="statsContainer"></div>
 </div>
 
-<!-- POPUPS -->
+<!-- Modals -->
 <div id="overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1500;" class="hidden" onclick="closePopups()"></div>
 <div id="detailPopup" style="position:fixed; top:10%; left:5%; width:90%; height:80%; background:white; z-index:2000; border-radius:15px; padding:15px; overflow-y:auto;" class="hidden">
-    <h3 id="popupTitle">Details</h3>
-    <ul id="popupList"></ul>
-    <button onclick="closePopups()" style="width:100%; padding: 15px; background: #ccc; border: none; border-radius: 8px;">Close</button>
+    <h3 id="popupTitle" style="margin-top:0;">Details</h3>
+    <ul id="popupList" style="padding-left: 20px;"></ul>
+    <button onclick="closePopups()" style="width:100%; padding: 15px; background: #ccc; border: none; border-radius: 8px; font-weight: bold;">Close</button>
 </div>
 
 <!-- KEYPAD -->
 <div id="keypadModal" class="hidden">
-    <div id="kpDisplay" style="color:white; font-size:2em; text-align:center; margin-bottom:10px;">0</div>
+    <div class="kp-header">
+        <span id="kpPlayerName" style="font-weight: bold;">Player</span>
+        <span id="kpDisplay" style="font-size: 1.4em; background: rgba(0,0,0,0.3); padding: 2px 15px; border-radius: 5px;">0</span>
+    </div>
     <div class="kp-grid">
         <button onclick="kpInput(1)">1</button><button onclick="kpInput(2)">2</button><button onclick="kpInput(3)">3</button>
         <button onclick="kpInput(4)">4</button><button onclick="kpInput(5)">5</button><button onclick="kpInput(6)">6</button>
         <button onclick="kpInput(7)">7</button><button onclick="kpInput(8)">8</button><button onclick="kpInput(9)">9</button>
-        <button onclick="kpClear()">C</button><button onclick="kpInput(0)">0</button><button onclick="kpToggleSH()" id="kpShBtn" style="background:var(--warning); color:white;">SH</button>
+        <button onclick="kpClear()" style="background: #95a5a6; color: white;">C</button><button onclick="kpInput(0)">0</button>
+        <button onclick="kpToggleSH()" id="kpShBtn" class="btn-sh">SH</button>
         <button class="btn-ent" onclick="kpEnter()">ENTER</button>
     </div>
 </div>
@@ -120,24 +136,12 @@
 <script>
     const allPlayers = ["Mitch", "Dee", "Noel", "Ashley", "Tallon", "Audrey"];
     let activePlayers = [];
-    let timerInterval;
-    let seconds = 0;
-    let isPaused = false;
     
-    // Audio context for alarm
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    function playAlarm() {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.2);
-    }
+    // Timer Logic for iOS (Timestamp based)
+    let startTime; 
+    let accumulatedTime = 0;
+    let timerRunning = false;
+    let timerInterval;
 
     let stats = JSON.parse(localStorage.getItem('shanghaiProStatsV2')) || getEmptyStats();
 
@@ -174,25 +178,20 @@
         if (activePlayers.length < 2) return alert("Select at least 2 players");
         let streakFound = false;
         let streakMsg = "";
-
         activePlayers.forEach(p => {
             if (stats.playerData[p].currentWinStreak > 1) {
                 streakFound = true;
                 streakMsg += `${p.toUpperCase()} IS ON A ${stats.playerData[p].currentWinStreak} GAME WIN STREAK!<br>`;
             }
         });
-
         if (streakFound) {
             document.getElementById('streakText').innerHTML = streakMsg;
             document.getElementById('streakBanner').classList.remove('hidden');
-            window.alarmTimer = setInterval(playAlarm, 300);
-        } else {
-            startGame();
-        }
+            // Play Alarm
+        } else { startGame(); }
     }
 
     function dismissBanner() {
-        clearInterval(window.alarmTimer);
         document.getElementById('streakBanner').classList.add('hidden');
         startGame();
     }
@@ -201,31 +200,45 @@
         document.getElementById('setupView').classList.add('hidden');
         document.getElementById('gameView').classList.remove('hidden');
         document.getElementById('gameTimer').classList.remove('hidden');
-        seconds = 0;
-        isPaused = false;
-        startTimer();
+        
+        startTime = Date.now();
+        accumulatedTime = 0;
+        timerRunning = true;
+        startClockLoop();
+        
         buildTable();
     }
 
-    function startTimer() {
+    function startClockLoop() {
+        if (timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(() => {
-            if (!isPaused) {
-                seconds++;
-                let hrs = Math.floor(seconds / 3600);
-                let mins = Math.floor((seconds - (hrs * 3600)) / 60);
-                let secs = seconds % 60;
-                document.getElementById('gameTimer').innerText = 
-                    `${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+            if (timerRunning) {
+                const now = Date.now();
+                const totalSeconds = Math.floor((accumulatedTime + (now - startTime)) / 1000);
+                updateTimerDisplay(totalSeconds);
             }
-        }, 1000);
+        }, 500);
+    }
+
+    function updateTimerDisplay(s) {
+        let hrs = Math.floor(s / 3600);
+        let mins = Math.floor((s % 3600) / 60);
+        let secs = s % 60;
+        document.getElementById('gameTimer').innerText = 
+            `${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
     }
 
     function togglePause() {
-        isPaused = !isPaused;
-        document.getElementById('gameTimer').style.opacity = isPaused ? "0.5" : "1";
+        if (timerRunning) {
+            accumulatedTime += (Date.now() - startTime);
+            timerRunning = false;
+        } else {
+            startTime = Date.now();
+            timerRunning = true;
+        }
+        document.getElementById('gameTimer').style.opacity = timerRunning ? "1" : "0.4";
     }
 
-    // --- Standard Game Table Logic ---
     function buildTable() {
         const head = document.getElementById('gameHead');
         const body = document.getElementById('gameBody');
@@ -237,7 +250,7 @@
     function addRoundRow(r) {
         const body = document.getElementById('gameBody');
         let html = `<tr id="row-score-${r}"><td class="sticky-col">${r} <button onclick="openCutSelection(${r})">C</button></td>`;
-        activePlayers.forEach((p, i) => { html += `<td id="cell-${r}-${i}" onclick="openKeypad(${r}, ${i})">0</td>`; });
+        activePlayers.forEach((p, i) => { html += `<td id="cell-${r}-${i}" onclick="openKeypad(${r}, ${i}, '${p}')">0</td>`; });
         html += `</tr><tr id="row-total-${r}" class="total-row"><td class="sticky-col">TOT</td>`;
         activePlayers.forEach((p, i) => { html += `<td id="total-${r}-${i}">0</td>`; });
         html += `</tr>`;
@@ -250,7 +263,7 @@
         list.innerHTML = '';
         activePlayers.forEach((p, i) => {
             const btn = document.createElement('button');
-            btn.style.width = "100%"; btn.style.padding = "15px"; btn.style.margin = "5px 0";
+            btn.style.width = "100%"; btn.style.padding = "15px"; btn.style.margin = "5px 0"; btn.style.fontSize="1.1em"; btn.style.borderRadius="8px";
             btn.innerText = p;
             btn.onclick = () => applyCut(r, i);
             list.appendChild(btn);
@@ -278,14 +291,19 @@
     let activeCell = null;
     let kpVal = "";
     let kpSh = false;
-    function openKeypad(r, i) {
+
+    function openKeypad(r, i, pName) {
         activeCell = { r, i }; kpVal = ""; kpSh = false;
+        document.getElementById('kpPlayerName').innerText = pName + " - Round " + r;
         document.getElementById('kpDisplay').innerText = "0";
+        document.getElementById('kpShBtn').style.background = "var(--warning)";
         document.getElementById('keypadModal').classList.remove('hidden');
     }
+
     function kpInput(n) { kpVal += n; document.getElementById('kpDisplay').innerText = kpVal; }
     function kpClear() { kpVal = ""; document.getElementById('kpDisplay').innerText = "0"; }
     function kpToggleSH() { kpSh = !kpSh; document.getElementById('kpShBtn').style.background = kpSh ? "red" : "var(--warning)"; }
+
     function kpEnter() {
         const cell = document.getElementById(`cell-${activeCell.r}-${activeCell.i}`);
         cell.innerText = kpVal || "0";
@@ -322,6 +340,7 @@
 
     function finalizeGame() {
         if (!confirm("Submit scores?")) return;
+        const finalSecs = Math.floor((accumulatedTime + (Date.now() - startTime)) / 1000);
         clearInterval(timerInterval);
         
         let gameScores = activePlayers.map((p, i) => ({ name: p, total: parseInt(document.getElementById(`total-7-${i}`).innerText) }));
@@ -329,52 +348,39 @@
         const winner = gameScores[0];
         const loser = gameScores[gameScores.length - 1];
 
-        stats.gameTimes.push({ players: activePlayers.length, time: seconds });
+        stats.gameTimes.push({ players: activePlayers.length, time: finalSecs });
 
-        // Update streaks and basic stats
         activePlayers.forEach(p => {
             const pd = stats.playerData[p];
             if (p === winner.name) {
-                pd.wins++;
-                pd.currentWinStreak++;
-                pd.currentLossStreak = 0;
+                pd.wins++; pd.currentWinStreak++; pd.currentLossStreak = 0;
                 if (pd.currentWinStreak > pd.maxWinStreak) pd.maxWinStreak = pd.currentWinStreak;
             } else if (p === loser.name) {
-                pd.losses++;
-                pd.currentLossStreak++;
-                pd.currentWinStreak = 0;
+                pd.losses++; pd.currentLossStreak++; pd.currentWinStreak = 0;
                 if (pd.currentLossStreak > pd.maxLossStreak) pd.maxLossStreak = pd.currentLossStreak;
             } else {
-                // Participated but didn't win/lose - current streaks reset? 
-                // Usually streaks are "In games played", so we reset.
-                pd.currentWinStreak = 0;
-                pd.currentLossStreak = 0;
+                pd.currentWinStreak = 0; pd.currentLossStreak = 0;
             }
-
-            // Track SH in this game
-            for (let r = 1; r <= 7; r++) {
-                const cell = document.getElementById(`cell-${r}-${activePlayers.indexOf(p)}`);
-                if (cell.classList.contains('sh-cell')) {
+            // SH logic...
+            const pIdx = activePlayers.indexOf(p);
+            for(let r=1; r<=7; r++){
+                const cell = document.getElementById(`cell-${r}-${pIdx}`);
+                if(cell.classList.contains('sh-cell')){
                     const s = parseInt(cell.innerText);
-                    pd.shCount++;
-                    stats.historySH.push({ name: p, score: s });
-                    if (s > pd.worstSHScore) pd.worstSHScore = s;
+                    pd.shCount++; stats.historySH.push({name: p, score: s});
+                    if(s > pd.worstSHScore) pd.worstSHScore = s;
                 }
             }
         });
 
-        stats.historyWins.push(winner);
-        stats.historyLosses.push(loser);
+        stats.historyWins.push(winner); stats.historyLosses.push(loser);
         if (winner.total < stats.playerData[winner.name].lowWin) stats.playerData[winner.name].lowWin = winner.total;
         if (loser.total > stats.playerData[loser.name].highLoss) stats.playerData[loser.name].highLoss = loser.total;
 
         document.querySelectorAll('.cut-row').forEach(row => {
             activePlayers.forEach((p, i) => {
-                const cutVal = row.children[i+1].getAttribute('data-cutter');
-                if (cutVal && cutVal !== "0") {
-                    stats.playerData[p].cuts++;
-                    stats.cutBreakdown[cutVal]++;
-                }
+                const cVal = row.children[i+1].getAttribute('data-cutter');
+                if (cVal && cVal !== "0") { stats.playerData[p].cuts++; stats.cutBreakdown[cVal]++; }
             });
         });
 
@@ -386,34 +392,21 @@
         const cont = document.getElementById('statsContainer');
         const pData = stats.playerData;
         const getHigh = (key) => Math.max(...allPlayers.map(p => pData[p][key]));
-        const getLow = (key) => Math.min(...allPlayers.map(p => pData[p][key] === 999 ? 1000 : pData[p][key]));
-
-        const maxW = getHigh('wins'), maxL = getHigh('losses'), maxWS = getHigh('maxWinStreak'), 
-              maxLS = getHigh('maxLossStreak'), worstSH = getHigh('worstSHScore');
+        const maxW = getHigh('wins'), maxL = getHigh('losses'), maxWS = getHigh('maxWinStreak');
         
-        const shortTime = stats.gameTimes.length ? Math.min(...stats.gameTimes.map(t => t.time)) : 0;
-        const longTime = stats.gameTimes.length ? Math.max(...stats.gameTimes.map(t => t.time)) : 0;
-
-        let html = `<table><tr><th>Player</th><th>Wins</th><th>Losses</th><th>W Streak</th><th>L Streak</th><th class="clickable-header" onclick="showSHList()">Worst SH</th><th class="clickable-header" onclick="showHistory('wins')">Low Win</th><th class="clickable-header" onclick="showTimeHistory()">Time (S/L)</th></tr>`;
+        let html = `<table><tr><th>Player</th><th>W/L</th><th>Streak</th><th class="clickable-header" onclick="showSHList()">Worst SH</th><th class="clickable-header" onclick="showHistory('wins')">Low Win</th><th class="clickable-header" onclick="showTimeHistory()">Time</th></tr>`;
         allPlayers.forEach(p => {
             const d = pData[p];
             html += `<tr>
                 <td>${p}</td>
-                <td class="${d.wins === maxW && maxW > 0 ? 'stat-best' : ''}">${d.wins}</td>
-                <td class="${d.losses === maxL && maxL > 0 ? 'stat-worst' : ''}">${d.losses}</td>
+                <td>${d.wins}/${d.losses}</td>
                 <td class="${d.maxWinStreak === maxWS && maxWS > 1 ? 'stat-best' : ''}">${d.maxWinStreak}</td>
-                <td class="${d.maxLossStreak === maxLS && maxLS > 1 ? 'stat-worst' : ''}">${d.maxLossStreak}</td>
                 <td>${d.worstSHScore}</td>
                 <td>${d.lowWin === 999 ? '-' : d.lowWin}</td>
-                <td>${formatS(shortTime)} / ${formatS(longTime)}</td>
+                <td><button onclick="showTimeHistory()" style="font-size:0.7em">View</button></td>
             </tr>`;
         });
-        cont.innerHTML = html + `</table><div style='padding:10px; font-size:0.8em'>*Streak only counts games player participated in.</div>`;
-    }
-
-    function formatS(s) { 
-        if(!s) return "-";
-        let m = Math.floor(s/60); return `${m}m ${s%60}s`;
+        cont.innerHTML = html + `</table>`;
     }
 
     function showTab(tab) {
@@ -433,30 +426,19 @@
     function showHistory(type) {
         const data = type === 'wins' ? stats.historyWins : stats.historyLosses;
         const sorted = [...data].sort((a,b) => type === 'wins' ? a.total - b.total : b.total - a.total);
-        openPopup(type === 'wins' ? "Lowest Scores" : "Highest Scores", sorted.map(i => `${i.name}: ${i.total}`));
+        openPopup("Historical Scores", sorted.map(i => `${i.name}: ${i.total}`));
     }
     function showTimeHistory() {
         const sorted = [...stats.gameTimes].sort((a,b) => a.time - b.time);
-        openPopup("Game Durations", sorted.map(i => `${i.players} players: ${formatS(i.time)}`));
+        openPopup("Game Durations", sorted.map(i => `${i.players} players: ${Math.floor(i.time/60)}m ${i.time%60}s`));
     }
     function openPopup(title, items) {
         document.getElementById('popupTitle').innerText = title;
-        document.getElementById('popupList').innerHTML = items.length ? items.map(i => `<li>${i}</li>`).join('') : "No data";
+        document.getElementById('popupList').innerHTML = items.map(i => `<li>${i}</li>`).join('');
         document.getElementById('overlay').classList.remove('hidden');
         document.getElementById('detailPopup').classList.remove('hidden');
     }
     function closePopups() { document.getElementById('overlay').classList.add('hidden'); document.getElementById('detailPopup').classList.add('hidden'); }
-
-    function generateTestData() {
-        allPlayers.forEach(p => {
-            stats.playerData[p].maxWinStreak = Math.floor(Math.random() * 4);
-            stats.playerData[p].currentWinStreak = stats.playerData[p].maxWinStreak;
-            stats.playerData[p].wins = Math.floor(Math.random() * 10);
-        });
-        localStorage.setItem('shanghaiProStatsV2', JSON.stringify(stats));
-        alert("TestData: Streaks added. Start a game with Ashley or Mitch to see banner.");
-        location.reload();
-    }
 
     initSetup();
 </script>
