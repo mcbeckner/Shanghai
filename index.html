@@ -35,8 +35,8 @@
         }
 
         /* Game Table */
-        .table-wrap { overflow-x: auto; background: white; }
-        table { border-collapse: collapse; width: 100%; min-width: 800px; }
+        .table-wrap { overflow-x: auto; background: white; -webkit-overflow-scrolling: touch; }
+        table { border-collapse: collapse; width: 100%; min-width: 600px; }
         th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
         th { background: #f4f4f4; position: sticky; top: 0; }
         .sticky-col { position: sticky; left: 0; background: #eee; font-weight: bold; z-index: 5; }
@@ -46,16 +46,32 @@
         .total-row { background: #e8e8e8; font-weight: bold; }
         .cut-row { background: #d1ecf1; font-size: 0.8em; }
 
-        /* STANDARD MOBILE KEYPAD */
+        /* KEYPAD OPTIMIZATION FOR IPHONE HORIZONTAL */
         #keypadModal {
             position: fixed; bottom: 0; left: 0; width: 100%; background: #34495e;
             padding: 10px; box-sizing: border-box; z-index: 1000; border-radius: 20px 20px 0 0;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
         }
-        .kp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-        .kp-grid button { padding: 18px; font-size: 1.5em; border-radius: 10px; border: none; background: white; font-weight: bold;}
-        .kp-grid .btn-sh { background: var(--warning); color: white; }
-        .kp-grid .btn-ent { background: var(--accent); color: white; grid-column: span 2; }
-        #kpDisplay { color: white; font-size: 2em; text-align: center; margin-bottom: 10px; }
+        #kpDisplay { color: white; font-size: 1.8em; text-align: center; margin-bottom: 8px; font-weight: bold; }
+        
+        .kp-container { display: flex; gap: 10px; }
+        .kp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: 2; }
+        .kp-actions { display: flex; flex-direction: column; gap: 8px; flex: 1; }
+        
+        .kp-container button { 
+            padding: 15px 0; font-size: 1.4em; border-radius: 10px; border: none; 
+            background: white; font-weight: bold; -webkit-appearance: none;
+        }
+        .btn-sh { background: var(--warning) !important; color: white; flex: 1; }
+        .btn-ent { background: var(--accent) !important; color: white; flex: 2; }
+        .btn-clear { background: #95a5a6 !important; color: white; }
+
+        /* Landscape Specific Tweak to ensure it fits on half the screen height */
+        @media (orientation: landscape) {
+            #keypadModal { padding: 5px; }
+            #kpDisplay { margin-bottom: 4px; font-size: 1.4em; }
+            .kp-container button { padding: 8px 0; font-size: 1.1em; }
+        }
 
         /* Stats Coloring */
         .stat-best { background: rgba(46, 204, 113, 0.4) !important; font-weight: bold; }
@@ -106,14 +122,20 @@
     <button onclick="closePopups()" style="width:100%; padding: 15px; background: #ccc; border: none; margin-top: 10px; border-radius: 8px;">Close</button>
 </div>
 
+<!-- OPTIMIZED KEYPAD -->
 <div id="keypadModal" class="hidden">
     <div id="kpDisplay">0</div>
-    <div class="kp-grid">
-        <button onclick="kpInput(1)">1</button><button onclick="kpInput(2)">2</button><button onclick="kpInput(3)">3</button>
-        <button onclick="kpInput(4)">4</button><button onclick="kpInput(5)">5</button><button onclick="kpInput(6)">6</button>
-        <button onclick="kpInput(7)">7</button><button onclick="kpInput(8)">8</button><button onclick="kpInput(9)">9</button>
-        <button onclick="kpClear()">C</button><button onclick="kpInput(0)">0</button><button class="btn-sh" id="kpShBtn" onclick="kpToggleSH()">SH</button>
-        <button class="btn-ent" onclick="kpEnter()">ENTER</button>
+    <div class="kp-container">
+        <div class="kp-grid">
+            <button onclick="kpInput(1)">1</button><button onclick="kpInput(2)">2</button><button onclick="kpInput(3)">3</button>
+            <button onclick="kpInput(4)">4</button><button onclick="kpInput(5)">5</button><button onclick="kpInput(6)">6</button>
+            <button onclick="kpInput(7)">7</button><button onclick="kpInput(8)">8</button><button onclick="kpInput(9)">9</button>
+            <button onclick="kpClear()" class="btn-clear">C</button><button onclick="kpInput(0)">0</button>
+        </div>
+        <div class="kp-actions">
+            <button class="btn-sh" id="kpShBtn" onclick="kpToggleSH()">SH</button>
+            <button class="btn-ent" onclick="kpEnter()">ENTER</button>
+        </div>
     </div>
 </div>
 
@@ -122,7 +144,6 @@
     let activePlayers = [];
     let startTime, accumulatedTime = 0, timerRunning = false, timerInterval;
 
-    // Audio for alarm
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playAlarm() {
         const osc = audioCtx.createOscillator();
