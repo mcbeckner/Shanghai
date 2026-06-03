@@ -3,30 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Shanghai Pro iPhone</title>
+    <title>Shanghai Pro</title>
     <style>
         :root {
             --primary: #2c3e50; --accent: #27ae60; --danger: #e74c3c;
             --warning: #f39c12; --light: #f8f9fa; --blue: #3498db;
         }
-        body { font-family: -apple-system, sans-serif; margin: 0; background: #eee; touch-action: manipulation; }
+        body { font-family: sans-serif; margin: 0; background: #eee; touch-action: manipulation; }
         .hidden { display: none !important; }
         
         /* Navigation & Timer */
         .nav { display: flex; background: var(--primary); padding: 5px; align-items: center; position: sticky; top:0; z-index: 100;}
-        .nav button { flex: 1; padding: 10px; color: white; background: none; border: none; font-weight: bold; }
+        .nav button { flex: 1; padding: 12px; color: white; background: none; border: none; font-weight: bold; }
         .nav button.active { border-bottom: 4px solid var(--accent); }
-        #gameTimer { color: #f1c40f; font-family: monospace; font-size: 1.1em; padding-right: 10px; min-width: 80px; text-align: right;}
+        #gameTimer { color: #f1c40f; font-family: monospace; font-size: 1.1em; padding-right: 10px; min-width: 90px; text-align: right; cursor: pointer;}
 
         /* Setup Screen */
         #setupView { padding: 20px; text-align: center; }
         .player-chip { 
-            display: inline-block; padding: 12px 20px; margin: 5px; 
-            border-radius: 20px; background: white; border: 2px solid #ccc; font-weight: bold;
+            display: inline-block; padding: 15px 25px; margin: 5px; 
+            border-radius: 25px; background: white; border: 2px solid #ccc;
         }
         .player-chip.selected { background: var(--accent); color: white; border-color: var(--accent); }
 
-        /* Flashing Banner */
+        /* Banner */
         @keyframes flashRed { 0% { background: red; } 50% { background: yellow; } 100% { background: red; } }
         #streakBanner {
             position: fixed; top:0; left:0; width:100%; height:100%; z-index: 9999;
@@ -34,40 +34,28 @@
             animation: flashRed 0.2s infinite; text-align: center; padding: 20px; box-sizing: border-box;
         }
 
-        /* Table UI */
-        .table-wrap { overflow-x: auto; background: white; -webkit-overflow-scrolling: touch; }
-        table { border-collapse: collapse; width: 100%; min-width: 500px; }
-        th, td { border: 1px solid #ccc; padding: 6px; text-align: center; font-size: 0.85em; }
-        th { background: #f4f4f4; }
-        .sticky-col { position: sticky; left: 0; background: #eee; font-weight: bold; z-index: 5; border-right: 2px solid #999; }
+        /* Game Table */
+        .table-wrap { overflow-x: auto; background: white; }
+        table { border-collapse: collapse; width: 100%; min-width: 800px; }
+        th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
+        th { background: #f4f4f4; position: sticky; top: 0; }
+        .sticky-col { position: sticky; left: 0; background: #eee; font-weight: bold; z-index: 5; }
         .sh-cell { background: var(--warning) !important; color: white; }
         .low-score { background: #2ecc71 !important; color: white; }
         .high-score { background: #e74c3c !important; color: white; }
         .total-row { background: #e8e8e8; font-weight: bold; }
-        .cut-row { background: #d1ecf1; font-size: 0.75em; }
+        .cut-row { background: #d1ecf1; font-size: 0.8em; }
 
-        /* KEYPAD OPTIMIZATION */
+        /* STANDARD MOBILE KEYPAD */
         #keypadModal {
             position: fixed; bottom: 0; left: 0; width: 100%; background: #34495e;
-            padding: 8px; box-sizing: border-box; z-index: 1000; 
-            border-radius: 15px 15px 0 0; box-shadow: 0 -5px 15px rgba(0,0,0,0.3);
+            padding: 10px; box-sizing: border-box; z-index: 1000; border-radius: 20px 20px 0 0;
         }
-        .kp-header { display: flex; justify-content: space-between; align-items: center; color: white; margin-bottom: 5px; }
-        .kp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-        .kp-grid button { 
-            padding: 12px; font-size: 1.2em; border-radius: 8px; border: none; background: white; font-weight: bold;
-            -webkit-appearance: none;
-        }
-        .btn-sh { background: var(--warning) !important; color: white; }
-        .btn-ent { background: var(--accent) !important; color: white; grid-column: span 2; }
-        
-        /* Landscape specific tweaks */
-        @media (orientation: landscape) {
-            .kp-grid { grid-template-columns: repeat(6, 1fr); }
-            .btn-ent { grid-column: span 2; }
-            #keypadModal { padding: 5px; }
-            .kp-grid button { padding: 8px; font-size: 1em; }
-        }
+        .kp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .kp-grid button { padding: 18px; font-size: 1.5em; border-radius: 10px; border: none; background: white; font-weight: bold;}
+        .kp-grid .btn-sh { background: var(--warning); color: white; }
+        .kp-grid .btn-ent { background: var(--accent); color: white; grid-column: span 2; }
+        #kpDisplay { color: white; font-size: 2em; text-align: center; margin-bottom: 10px; }
 
         /* Stats Coloring */
         .stat-best { background: rgba(46, 204, 113, 0.4) !important; font-weight: bold; }
@@ -79,20 +67,22 @@
 
 <div class="nav">
     <button id="navGame" class="active" onclick="showTab('game')">GAME</button>
-    <button id="navStats" onclick="showTab('stats')">STATS</button>
+    <button id="navStats" onclick="showTab('stats')">OVERALL STATS</button>
     <div id="gameTimer" class="hidden" onclick="togglePause()">00:00:00</div>
 </div>
 
-<!-- STREAK BANNER -->
 <div id="streakBanner" class="hidden">
     <h1 id="streakText" style="font-size: 2em; margin-bottom: 20px;"></h1>
     <button onclick="dismissBanner()" style="padding: 15px 30px; font-size: 1.2em; background: white; border: 4px solid black; border-radius: 12px; font-weight: bold;">Ok, we'll Shanghai them!</button>
 </div>
 
 <div id="setupView">
-    <h2 style="margin: 10px 0;">Who is playing?</h2>
+    <h2>Who is playing?</h2>
     <div id="playerSelectContainer"></div>
-    <button onclick="checkStreaksAndStart()" style="margin-top:20px; width: 80%; padding: 18px; background: var(--accent); color: white; border: none; border-radius: 12px; font-weight: bold; font-size: 1.1em;">START GAME</button>
+    <button onclick="checkStreaksAndStart()" style="margin-top:20px; padding: 15px 40px; background: var(--accent); color: white; border: none; border-radius: 8px;">START GAME</button>
+    <br><br>
+    <button style="background: #95a5a6; color: white; border: none; padding: 8px; border-radius: 5px;" onclick="generateTestData()">Generate Test Data</button>
+    <button style="background: var(--danger); color: white; border: none; padding: 8px; border-radius: 5px;" onclick="clearAllData()">Clear Data</button>
 </div>
 
 <div id="gameView" class="hidden">
@@ -102,33 +92,27 @@
             <tbody id="gameBody"></tbody>
         </table>
     </div>
-    <button onclick="finalizeGame()" style="width:100%; padding: 18px; background: var(--primary); color: white; border: none; font-weight: bold; margin-top: 10px;">FINISH GAME</button>
+    <button onclick="finalizeGame()" style="width:100%; padding: 20px; background: var(--primary); color: white; border: none;">FINISH & SAVE GAME</button>
 </div>
 
 <div id="statsView" class="hidden">
     <div class="table-wrap" id="statsContainer"></div>
 </div>
 
-<!-- Modals -->
-<div id="overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1500;" class="hidden" onclick="closePopups()"></div>
+<div id="overlay" class="overlay hidden" onclick="closePopups()"></div>
 <div id="detailPopup" style="position:fixed; top:10%; left:5%; width:90%; height:80%; background:white; z-index:2000; border-radius:15px; padding:15px; overflow-y:auto;" class="hidden">
-    <h3 id="popupTitle" style="margin-top:0;">Details</h3>
-    <ul id="popupList" style="padding-left: 20px;"></ul>
-    <button onclick="closePopups()" style="width:100%; padding: 15px; background: #ccc; border: none; border-radius: 8px; font-weight: bold;">Close</button>
+    <h3 id="popupTitle">Details</h3>
+    <ul id="popupList" style="list-style: none; padding: 0;"></ul>
+    <button onclick="closePopups()" style="width:100%; padding: 15px; background: #ccc; border: none; margin-top: 10px; border-radius: 8px;">Close</button>
 </div>
 
-<!-- KEYPAD -->
 <div id="keypadModal" class="hidden">
-    <div class="kp-header">
-        <span id="kpPlayerName" style="font-weight: bold;">Player</span>
-        <span id="kpDisplay" style="font-size: 1.4em; background: rgba(0,0,0,0.3); padding: 2px 15px; border-radius: 5px;">0</span>
-    </div>
+    <div id="kpDisplay">0</div>
     <div class="kp-grid">
         <button onclick="kpInput(1)">1</button><button onclick="kpInput(2)">2</button><button onclick="kpInput(3)">3</button>
         <button onclick="kpInput(4)">4</button><button onclick="kpInput(5)">5</button><button onclick="kpInput(6)">6</button>
         <button onclick="kpInput(7)">7</button><button onclick="kpInput(8)">8</button><button onclick="kpInput(9)">9</button>
-        <button onclick="kpClear()" style="background: #95a5a6; color: white;">C</button><button onclick="kpInput(0)">0</button>
-        <button onclick="kpToggleSH()" id="kpShBtn" class="btn-sh">SH</button>
+        <button onclick="kpClear()">C</button><button onclick="kpInput(0)">0</button><button class="btn-sh" id="kpShBtn" onclick="kpToggleSH()">SH</button>
         <button class="btn-ent" onclick="kpEnter()">ENTER</button>
     </div>
 </div>
@@ -136,23 +120,26 @@
 <script>
     const allPlayers = ["Mitch", "Dee", "Noel", "Ashley", "Tallon", "Audrey"];
     let activePlayers = [];
-    
-    // Timer Logic for iOS (Timestamp based)
-    let startTime; 
-    let accumulatedTime = 0;
-    let timerRunning = false;
-    let timerInterval;
+    let startTime, accumulatedTime = 0, timerRunning = false, timerInterval;
 
-    let stats = JSON.parse(localStorage.getItem('shanghaiProStatsV2')) || getEmptyStats();
+    // Audio for alarm
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playAlarm() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+    }
+
+    let stats = JSON.parse(localStorage.getItem('shanghaiProStatsV5')) || getEmptyStats();
 
     function getEmptyStats() {
         return {
             playerData: allPlayers.reduce((acc, p) => {
-                acc[p] = { 
-                    wins: 0, losses: 0, shCount: 0, cuts: 0, worstSHScore: 0, 
-                    lowWin: 999, highLoss: 0, currentWinStreak: 0, maxWinStreak: 0,
-                    currentLossStreak: 0, maxLossStreak: 0
-                }; return acc;
+                acc[p] = { wins: 0, losses: 0, shCount: 0, cuts: 0, worstSHScore: 0, lowWin: 999, highLoss: 0, maxWinStreak: 0, currentWinStreak: 0, maxLossStreak: 0, currentLossStreak: 0 }; return acc;
             }, {}),
             historySH: [], historyWins: [], historyLosses: [], gameTimes: [],
             cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 }
@@ -169,29 +156,25 @@
 
     function togglePlayerSelection(p) {
         const idx = activePlayers.indexOf(p);
-        if (idx > -1) activePlayers.splice(idx, 1);
-        else activePlayers.push(p);
+        if (idx > -1) activePlayers.splice(idx, 1); else activePlayers.push(p);
         document.getElementById(`chip-${p}`).classList.toggle('selected');
     }
 
     function checkStreaksAndStart() {
         if (activePlayers.length < 2) return alert("Select at least 2 players");
-        let streakFound = false;
-        let streakMsg = "";
+        let msg = "";
         activePlayers.forEach(p => {
-            if (stats.playerData[p].currentWinStreak > 1) {
-                streakFound = true;
-                streakMsg += `${p.toUpperCase()} IS ON A ${stats.playerData[p].currentWinStreak} GAME WIN STREAK!<br>`;
-            }
+            if (stats.playerData[p].currentWinStreak > 1) msg += `${p.toUpperCase()} IS ON A ${stats.playerData[p].currentWinStreak} GAME WIN STREAK!<br>`;
         });
-        if (streakFound) {
-            document.getElementById('streakText').innerHTML = streakMsg;
+        if (msg) {
+            document.getElementById('streakText').innerHTML = msg;
             document.getElementById('streakBanner').classList.remove('hidden');
-            // Play Alarm
-        } else { startGame(); }
+            window.streakAlarm = setInterval(playAlarm, 400);
+        } else startGame();
     }
 
     function dismissBanner() {
+        clearInterval(window.streakAlarm);
         document.getElementById('streakBanner').classList.add('hidden');
         startGame();
     }
@@ -200,48 +183,26 @@
         document.getElementById('setupView').classList.add('hidden');
         document.getElementById('gameView').classList.remove('hidden');
         document.getElementById('gameTimer').classList.remove('hidden');
-        
-        startTime = Date.now();
-        accumulatedTime = 0;
-        timerRunning = true;
-        startClockLoop();
-        
-        buildTable();
-    }
-
-    function startClockLoop() {
+        startTime = Date.now(); accumulatedTime = 0; timerRunning = true;
         if (timerInterval) clearInterval(timerInterval);
         timerInterval = setInterval(() => {
             if (timerRunning) {
-                const now = Date.now();
-                const totalSeconds = Math.floor((accumulatedTime + (now - startTime)) / 1000);
-                updateTimerDisplay(totalSeconds);
+                const s = Math.floor((accumulatedTime + (Date.now() - startTime)) / 1000);
+                let hrs = Math.floor(s / 3600); let mins = Math.floor((s % 3600) / 60); let secs = s % 60;
+                document.getElementById('gameTimer').innerText = `${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
             }
         }, 500);
-    }
-
-    function updateTimerDisplay(s) {
-        let hrs = Math.floor(s / 3600);
-        let mins = Math.floor((s % 3600) / 60);
-        let secs = s % 60;
-        document.getElementById('gameTimer').innerText = 
-            `${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+        buildTable();
     }
 
     function togglePause() {
-        if (timerRunning) {
-            accumulatedTime += (Date.now() - startTime);
-            timerRunning = false;
-        } else {
-            startTime = Date.now();
-            timerRunning = true;
-        }
+        if (timerRunning) { accumulatedTime += (Date.now() - startTime); timerRunning = false; }
+        else { startTime = Date.now(); timerRunning = true; }
         document.getElementById('gameTimer').style.opacity = timerRunning ? "1" : "0.4";
     }
 
     function buildTable() {
-        const head = document.getElementById('gameHead');
-        const body = document.getElementById('gameBody');
+        const head = document.getElementById('gameHead'); const body = document.getElementById('gameBody');
         head.innerHTML = `<tr><th class="sticky-col">Rnd</th>${activePlayers.map(p => `<th>${p}</th>`).join('')}</tr>`;
         body.innerHTML = "";
         for (let r = 1; r <= 7; r++) { addRoundRow(r); }
@@ -249,8 +210,8 @@
 
     function addRoundRow(r) {
         const body = document.getElementById('gameBody');
-        let html = `<tr id="row-score-${r}"><td class="sticky-col">${r} <button onclick="openCutSelection(${r})">C</button></td>`;
-        activePlayers.forEach((p, i) => { html += `<td id="cell-${r}-${i}" onclick="openKeypad(${r}, ${i}, '${p}')">0</td>`; });
+        let html = `<tr id="row-score-${r}"><td class="sticky-col">${r} <button onclick="openCutSelection(${r})">Cut</button></td>`;
+        activePlayers.forEach((p, i) => { html += `<td id="cell-${r}-${i}" onclick="openKeypad(${r}, ${i})">0</td>`; });
         html += `</tr><tr id="row-total-${r}" class="total-row"><td class="sticky-col">TOT</td>`;
         activePlayers.forEach((p, i) => { html += `<td id="total-${r}-${i}">0</td>`; });
         html += `</tr>`;
@@ -259,13 +220,11 @@
 
     function openCutSelection(r) {
         document.getElementById('popupTitle').innerText = "Who got the Cut?";
-        const list = document.getElementById('popupList');
-        list.innerHTML = '';
+        const list = document.getElementById('popupList'); list.innerHTML = '';
         activePlayers.forEach((p, i) => {
             const btn = document.createElement('button');
-            btn.style.width = "100%"; btn.style.padding = "15px"; btn.style.margin = "5px 0"; btn.style.fontSize="1.1em"; btn.style.borderRadius="8px";
-            btn.innerText = p;
-            btn.onclick = () => applyCut(r, i);
+            btn.style.width = "100%"; btn.style.padding = "15px"; btn.style.margin = "5px 0";
+            btn.innerText = p; btn.onclick = () => applyCut(r, i);
             list.appendChild(btn);
         });
         document.getElementById('overlay').classList.remove('hidden');
@@ -283,27 +242,20 @@
             const isCutter = (i === playerIdx);
             inner += `<td data-cutter="${isCutter ? cutMultiple : 0}">${isCutter ? 'Cut' : '50'}</td>`;
         });
-        cutRow.innerHTML = inner;
-        totalRow.parentNode.insertBefore(cutRow, totalRow);
+        cutRow.innerHTML = inner; totalRow.parentNode.insertBefore(cutRow, totalRow);
         calculate();
     }
 
-    let activeCell = null;
-    let kpVal = "";
-    let kpSh = false;
-
-    function openKeypad(r, i, pName) {
+    let activeCell = null, kpVal = "", kpSh = false;
+    function openKeypad(r, i) {
         activeCell = { r, i }; kpVal = ""; kpSh = false;
-        document.getElementById('kpPlayerName').innerText = pName + " - Round " + r;
         document.getElementById('kpDisplay').innerText = "0";
         document.getElementById('kpShBtn').style.background = "var(--warning)";
         document.getElementById('keypadModal').classList.remove('hidden');
     }
-
     function kpInput(n) { kpVal += n; document.getElementById('kpDisplay').innerText = kpVal; }
     function kpClear() { kpVal = ""; document.getElementById('kpDisplay').innerText = "0"; }
     function kpToggleSH() { kpSh = !kpSh; document.getElementById('kpShBtn').style.background = kpSh ? "red" : "var(--warning)"; }
-
     function kpEnter() {
         const cell = document.getElementById(`cell-${activeCell.r}-${activeCell.i}`);
         cell.innerText = kpVal || "0";
@@ -324,8 +276,7 @@
                     score += (next.children[i+1].innerText === "50" ? 50 : 0);
                     next = next.nextElementSibling;
                 }
-                runningTotals[i] += score;
-                roundFinals.push(runningTotals[i]);
+                runningTotals[i] += score; roundFinals.push(runningTotals[i]);
                 document.getElementById(`total-${r}-${i}`).innerText = runningTotals[i];
             });
             const min = Math.min(...roundFinals); const max = Math.max(...roundFinals);
@@ -339,17 +290,13 @@
     }
 
     function finalizeGame() {
-        if (!confirm("Submit scores?")) return;
+        if (!confirm("Submit final scores?")) return;
         const finalSecs = Math.floor((accumulatedTime + (Date.now() - startTime)) / 1000);
         clearInterval(timerInterval);
-        
         let gameScores = activePlayers.map((p, i) => ({ name: p, total: parseInt(document.getElementById(`total-7-${i}`).innerText) }));
         gameScores.sort((a, b) => a.total - b.total);
-        const winner = gameScores[0];
-        const loser = gameScores[gameScores.length - 1];
-
+        const winner = gameScores[0]; const loser = gameScores[gameScores.length - 1];
         stats.gameTimes.push({ players: activePlayers.length, time: finalSecs });
-
         activePlayers.forEach(p => {
             const pd = stats.playerData[p];
             if (p === winner.name) {
@@ -358,10 +305,7 @@
             } else if (p === loser.name) {
                 pd.losses++; pd.currentLossStreak++; pd.currentWinStreak = 0;
                 if (pd.currentLossStreak > pd.maxLossStreak) pd.maxLossStreak = pd.currentLossStreak;
-            } else {
-                pd.currentWinStreak = 0; pd.currentLossStreak = 0;
-            }
-            // SH logic...
+            } else { pd.currentWinStreak = 0; pd.currentLossStreak = 0; }
             const pIdx = activePlayers.indexOf(p);
             for(let r=1; r<=7; r++){
                 const cell = document.getElementById(`cell-${r}-${pIdx}`);
@@ -372,74 +316,44 @@
                 }
             }
         });
-
         stats.historyWins.push(winner); stats.historyLosses.push(loser);
         if (winner.total < stats.playerData[winner.name].lowWin) stats.playerData[winner.name].lowWin = winner.total;
         if (loser.total > stats.playerData[loser.name].highLoss) stats.playerData[loser.name].highLoss = loser.total;
-
         document.querySelectorAll('.cut-row').forEach(row => {
             activePlayers.forEach((p, i) => {
                 const cVal = row.children[i+1].getAttribute('data-cutter');
                 if (cVal && cVal !== "0") { stats.playerData[p].cuts++; stats.cutBreakdown[cVal]++; }
             });
         });
-
-        localStorage.setItem('shanghaiProStatsV2', JSON.stringify(stats));
+        localStorage.setItem('shanghaiProStatsV5', JSON.stringify(stats));
         location.reload();
     }
 
     function renderOverallStats() {
-        const cont = document.getElementById('statsContainer');
-        const pData = stats.playerData;
+        const cont = document.getElementById('statsContainer'); const pData = stats.playerData;
         const getHigh = (key) => Math.max(...allPlayers.map(p => pData[p][key]));
-        const maxW = getHigh('wins'), maxL = getHigh('losses'), maxWS = getHigh('maxWinStreak');
-        
-        let html = `<table><tr><th>Player</th><th>W/L</th><th>Streak</th><th class="clickable-header" onclick="showSHList()">Worst SH</th><th class="clickable-header" onclick="showHistory('wins')">Low Win</th><th class="clickable-header" onclick="showTimeHistory()">Time</th></tr>`;
+        const getLow = (key) => Math.min(...allPlayers.map(p => pData[p][key] === 999 ? 1000 : pData[p][key]));
+        const maxW = getHigh('wins'), maxL = getHigh('losses'), maxSH = getHigh('shCount'), maxWS = getHigh('maxWinStreak'), maxLS = getHigh('maxLossStreak'), worstSH = getHigh('worstSHScore'), bestW = getLow('lowWin'), worstL = getHigh('highLoss');
+        const sTime = stats.gameTimes.length ? Math.min(...stats.gameTimes.map(t => t.time)) : 0;
+        const lTime = stats.gameTimes.length ? Math.max(...stats.gameTimes.map(t => t.time)) : 0;
+        let html = `<table><tr><th>Player</th><th>Wins</th><th>Losses</th><th>W-Streak</th><th>L-Streak</th><th>Most SH</th><th class="clickable-header" onclick="showSHList()">Worst SH</th><th class="clickable-header" onclick="showCutDetails()">Cuts</th><th class="clickable-header" onclick="showHistory('wins')">Low Win</th><th class="clickable-header" onclick="showHistory('losses')">High Loss</th><th class="clickable-header" onclick="showTimeHistory()">Short/Long Game</th></tr>`;
         allPlayers.forEach(p => {
             const d = pData[p];
-            html += `<tr>
-                <td>${p}</td>
-                <td>${d.wins}/${d.losses}</td>
-                <td class="${d.maxWinStreak === maxWS && maxWS > 1 ? 'stat-best' : ''}">${d.maxWinStreak}</td>
-                <td>${d.worstSHScore}</td>
-                <td>${d.lowWin === 999 ? '-' : d.lowWin}</td>
-                <td><button onclick="showTimeHistory()" style="font-size:0.7em">View</button></td>
-            </tr>`;
+            html += `<tr><td>${p}</td><td class="${d.wins === maxW && maxW > 0 ? 'stat-best' : ''}">${d.wins}</td><td class="${d.losses === maxL && maxL > 0 ? 'stat-worst' : ''}">${d.losses}</td><td class="${d.maxWinStreak === maxWS && maxWS > 1 ? 'stat-best' : ''}">${d.maxWinStreak}</td><td class="${d.maxLossStreak === maxLS && maxLS > 1 ? 'stat-worst' : ''}">${d.maxLossStreak}</td><td class="${d.shCount === maxSH && maxSH > 0 ? 'stat-worst' : ''}">${d.shCount}</td><td class="${d.worstSHScore === worstSH && worstSH > 0 ? 'stat-worst' : ''}">${d.worstSHScore}</td><td>${d.cuts}</td><td class="${d.lowWin === bestW && bestW < 999 ? 'stat-best' : ''}">${d.lowWin === 999 ? '-' : d.lowWin}</td><td class="${d.highLoss === worstL && worstL > 0 ? 'stat-worst' : ''}">${d.highLoss === 0 ? '-' : d.highLoss}</td><td>${formatS(sTime)} / ${formatS(lTime)}</td></tr>`;
         });
         cont.innerHTML = html + `</table>`;
     }
 
-    function showTab(tab) {
-        document.getElementById('navGame').className = (tab === 'game' ? 'active' : '');
-        document.getElementById('navStats').className = (tab === 'stats' ? 'active' : '');
-        document.getElementById('gameView').classList.add('hidden');
-        document.getElementById('statsView').classList.add('hidden');
-        document.getElementById('setupView').classList.add('hidden');
-        if (tab === 'game') document.getElementById('setupView').classList.remove('hidden');
-        else { document.getElementById('statsView').classList.remove('hidden'); renderOverallStats(); }
-    }
-
-    function showSHList() {
-        const list = [...stats.historySH].sort((a,b) => b.score - a.score);
-        openPopup("Shanghai History", list.map(i => `${i.name}: ${i.score}`));
-    }
-    function showHistory(type) {
-        const data = type === 'wins' ? stats.historyWins : stats.historyLosses;
-        const sorted = [...data].sort((a,b) => type === 'wins' ? a.total - b.total : b.total - a.total);
-        openPopup("Historical Scores", sorted.map(i => `${i.name}: ${i.total}`));
-    }
-    function showTimeHistory() {
-        const sorted = [...stats.gameTimes].sort((a,b) => a.time - b.time);
-        openPopup("Game Durations", sorted.map(i => `${i.players} players: ${Math.floor(i.time/60)}m ${i.time%60}s`));
-    }
-    function openPopup(title, items) {
-        document.getElementById('popupTitle').innerText = title;
-        document.getElementById('popupList').innerHTML = items.map(i => `<li>${i}</li>`).join('');
-        document.getElementById('overlay').classList.remove('hidden');
-        document.getElementById('detailPopup').classList.remove('hidden');
-    }
+    function formatS(s) { if(!s) return "-"; let m = Math.floor(s/60); return `${m}m ${s%60}s`; }
+    function showSHList() { const list = [...stats.historySH].sort((a,b) => b.score - a.score); openPopup("Shanghai History", list.map(i => `${i.name}: ${i.score}`)); }
+    function showCutDetails() { const lines = Object.keys(stats.cutBreakdown).filter(k => stats.cutBreakdown[k] > 0).map(k => `${k}: ${stats.cutBreakdown[k]}`); openPopup("Cut Breakdown", lines); }
+    function showHistory(type) { const data = type === 'wins' ? stats.historyWins : stats.historyLosses; const sorted = [...data].sort((a,b) => type === 'wins' ? a.total - b.total : b.total - a.total); openPopup("Historical Scores", sorted.map(i => `${i.name}: ${i.total}`)); }
+    function showTimeHistory() { const sorted = [...stats.gameTimes].sort((a,b) => a.time - b.time); openPopup("Game Durations", sorted.map(i => `${i.players} players: ${formatS(i.time)}`)); }
+    function openPopup(title, items) { document.getElementById('popupTitle').innerText = title; document.getElementById('popupList').innerHTML = items.length ? items.map(i => `<li>${i}</li>`).join('') : "No data"; document.getElementById('overlay').classList.remove('hidden'); document.getElementById('detailPopup').classList.remove('hidden'); }
     function closePopups() { document.getElementById('overlay').classList.add('hidden'); document.getElementById('detailPopup').classList.add('hidden'); }
-
+    function showTab(tab) { document.getElementById('navGame').className = (tab === 'game' ? 'active' : ''); document.getElementById('navStats').className = (tab === 'stats' ? 'active' : ''); document.getElementById('gameView').classList.add('hidden'); document.getElementById('statsView').classList.add('hidden'); document.getElementById('setupView').classList.add('hidden'); if (tab === 'game') document.getElementById('setupView').classList.remove('hidden'); else { document.getElementById('statsView').classList.remove('hidden'); renderOverallStats(); } }
+    function clearAllData() { if(confirm("Clear all?")) { localStorage.clear(); location.reload(); } }
+    function generateTestData() { allPlayers.forEach(p => { stats.playerData[p].currentWinStreak = 2; stats.playerData[p].maxWinStreak = 2; }); localStorage.setItem('shanghaiProStatsV5', JSON.stringify(stats)); location.reload(); }
     initSetup();
 </script>
 </body>
