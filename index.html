@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Shanghai Pro Elite</title>
+    <style>
+        :root {
+            --primary: #2c3e50; --accent: #27ae60; --danger: #e74c3c;
+            --warning: #f39c12; --light: #f8f9fa; --blue: #3498db;
+        }
+        body { font-family: sans-serif; margin: 0; background: #eee; touch-action: manipulation; }
+        .hidden { display: none !important; }
+        
+        /* Navigation & Timer */
+        .nav { display: flex; background: var(--primary); padding: 5px; align-items: center;}
+        .nav button { flex: 1; padding: 12px; color: white; background: none; border: none; font-weight: bold; }
+        .nav button.active { border-bottom: 4px solid var(--accent); }
+        #gameTimer { color: #f1c40f; font-family: monospace; font-size: 1.2em; padding-right: 10px; }
+
+        /* Setup Screen */
+        #setupView { padding: 20px; text-align: center; }
+        .player-chip { 
+            display: inline-block; padding: 15px 25px; margin: 5px; 
+            border-radius: 25px; background: white; border: 2px solid #ccc;
+        }
+        .player-chip.selected { background: var(--accent); color: white; border-color: var(--accent); }
+
+        /* Flashing Banner */
+        @keyframes flashRed { 0% { background: red; } 50% { background: yellow; } 100% { background: red; } }
+        #streakBanner {
+            position: fixed; top:0; left:0; width:100%; height:100%; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            animation: flashRed 0.2s infinite; text-align: center; color: black; font-weight: 900;
+        }
+
+        /* Table UI */
+        .table-wrap { overflow-x: auto; background: white; }
+        table { border-collapse: collapse; width: 100%; min-width: 600px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; font-size: 0.9em; }
+        th { background: #f4f4f4; position: sticky; top: 0; }
+        .sticky-col { position: sticky; left: 0; background: #eee; font-weight: bold; z-index: 5; }
+        .sh-cell { background: var(--warning) !important; color: white; }
+        .low-score { background: #2ecc71 !important; color: white; }
+        .high-score { background: #e74c3c !important; color: white; }
+        .total-row { background: #e8e8e8; font-weight: bold; }
+        .cut-row { background: #d1ecf1; font-size: 0.8em; }
+
+        /* Keypad */
+        #keypadModal {
+            position: fixed; bottom: 0; left: 0; width: 100%; background: #34495e;
+            padding: 10px; box-sizing: border-box; z-index: 1000; border-radius: 20px 20px 0 0;
+        }
+        .kp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .kp-grid button { padding: 20px; font-size: 1.5em; border-radius: 10px; border: none; background: white; }
+        .btn-ent { background: var(--accent) !important; color: white; grid-column: span 2; }
+
+        /* Stats Coloring */
+        .stat-best { background: rgba(46, 204, 113, 0.4) !important; font-weight: bold; }
+        .stat-worst { background: rgba(231, 76, 60, 0.4) !important; font-weight: bold; }
+        .clickable-header { text-decoration: underline; color: var(--blue); cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="nav">
+    <button id="navGame" class="active" onclick="showTab('game')">GAME</button>
+    <button id="navStats" onclick="showTab('stats')">STATS</button>
+    <div id="gameTimer" class="hidden" onclick="togglePause()">00:00:00</div>
+</div>
+
+<!-- STREAK BANNER -->
+<div id="streakBanner" class="hidden">
+    <h1 id="streakText" style="font-size: 3em;"></h1>
+    <button onclick="dismissBanner()" style="padding: 20px 40px; font-size: 1.5em; background: white; border: 5px solid black; border-radius: 15px; font-weight: bold;">Ok, we'll Shanghai them!</button>
+</div>
+
+<div id="setupView">
+    <h2>Who is playing?</h2>
+    <div id="playerSelectContainer"></div>
+    <button onclick="checkStreaksAndStart()" style="margin-top:20px; padding: 15px 40px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold;">START GAME</button>
+    <br><br>
+    <button style="background: #95a5a6; color: white; border: none; padding: 8px; border-radius: 5px;" onclick="generateTestData()">Generate Test Data</button>
+</div>
+
+<div id="gameView" class="hidden">
+    <div class="table-wrap">
+        <table id="gameTable">
+            <thead id="gameHead"></thead>
+            <tbody id="gameBody"></tbody>
+        </table>
+    </div>
+    <button onclick="finalizeGame()" style="width:100%; padding: 20px; background: var(--primary); color: white; border: none; font-weight: bold;">FINISH & SAVE GAME</button>
+</div>
+
+<div id="statsView" class="hidden">
+    <div class="table-wrap" id="statsContainer"></div>
+</div>
+
+<!-- POPUPS -->
+<div id="overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:1500;" class="hidden" onclick="closePopups()"></div>
+<div id="detailPopup" style="position:fixed; top:10%; left:5%; width:90%; height:80%; background:white; z-index:2000; border-radius:15px; padding:15px; overflow-y:auto;" class="hidden">
+    <h3 id="popupTitle">Details</h3>
+    <ul id="popupList"></ul>
+    <button onclick="closePopups()" style="width:100%; padding: 15px; background: #ccc; border: none; border-radius: 8px;">Close</button>
+</div>
+
+<!-- KEYPAD -->
+<div id="keypadModal" class="hidden">
+    <div id="kpDisplay" style="color:white; font-size:2em; text-align:center; margin-bottom:10px;">0</div>
+    <div class="kp-grid">
+        <button onclick="kpInput(1)">1</button><button onclick="kpInput(2)">2</button><button onclick="kpInput(3)">3</button>
+        <button onclick="kpInput(4)">4</button><button onclick="kpInput(5)">5</button><button onclick="kpInput(6)">6</button>
+        <button onclick="kpInput(7)">7</button><button onclick="kpInput(8)">8</button><button onclick="kpInput(9)">9</button>
+        <button onclick="kpClear()">C</button><button onclick="kpInput(0)">0</button><button onclick="kpToggleSH()" id="kpShBtn" style="background:var(--warning); color:white;">SH</button>
+        <button class="btn-ent" onclick="kpEnter()">ENTER</button>
+    </div>
+</div>
+
+<script>
+    const allPlayers = ["Mitch", "Dee", "Noel", "Ashley", "Tallon", "Audrey"];
+    let activePlayers = [];
+    let timerInterval;
+    let seconds = 0;
+    let isPaused = false;
+    
+    // Audio context for alarm
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playAlarm() {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+    }
+
+    let stats = JSON.parse(localStorage.getItem('shanghaiProStatsV2')) || getEmptyStats();
+
+    function getEmptyStats() {
+        return {
+            playerData: allPlayers.reduce((acc, p) => {
+                acc[p] = { 
+                    wins: 0, losses: 0, shCount: 0, cuts: 0, worstSHScore: 0, 
+                    lowWin: 999, highLoss: 0, currentWinStreak: 0, maxWinStreak: 0,
+                    currentLossStreak: 0, maxLossStreak: 0
+                }; return acc;
+            }, {}),
+            historySH: [], historyWins: [], historyLosses: [], gameTimes: [],
+            cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 }
+        };
+    }
+
+    function initSetup() {
+        const cont = document.getElementById('playerSelectContainer');
+        cont.innerHTML = '';
+        allPlayers.forEach(p => {
+            cont.innerHTML += `<div class="player-chip" id="chip-${p}" onclick="togglePlayerSelection('${p}')">${p}</div>`;
+        });
+    }
+
+    function togglePlayerSelection(p) {
+        const idx = activePlayers.indexOf(p);
+        if (idx > -1) activePlayers.splice(idx, 1);
+        else activePlayers.push(p);
+        document.getElementById(`chip-${p}`).classList.toggle('selected');
+    }
+
+    function checkStreaksAndStart() {
+        if (activePlayers.length < 2) return alert("Select at least 2 players");
+        let streakFound = false;
+        let streakMsg = "";
+
+        activePlayers.forEach(p => {
+            if (stats.playerData[p].currentWinStreak > 1) {
+                streakFound = true;
+                streakMsg += `${p.toUpperCase()} IS ON A ${stats.playerData[p].currentWinStreak} GAME WIN STREAK!<br>`;
+            }
+        });
+
+        if (streakFound) {
+            document.getElementById('streakText').innerHTML = streakMsg;
+            document.getElementById('streakBanner').classList.remove('hidden');
+            window.alarmTimer = setInterval(playAlarm, 300);
+        } else {
+            startGame();
+        }
+    }
+
+    function dismissBanner() {
+        clearInterval(window.alarmTimer);
+        document.getElementById('streakBanner').classList.add('hidden');
+        startGame();
+    }
+
+    function startGame() {
+        document.getElementById('setupView').classList.add('hidden');
+        document.getElementById('gameView').classList.remove('hidden');
+        document.getElementById('gameTimer').classList.remove('hidden');
+        seconds = 0;
+        isPaused = false;
+        startTimer();
+        buildTable();
+    }
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            if (!isPaused) {
+                seconds++;
+                let hrs = Math.floor(seconds / 3600);
+                let mins = Math.floor((seconds - (hrs * 3600)) / 60);
+                let secs = seconds % 60;
+                document.getElementById('gameTimer').innerText = 
+                    `${hrs.toString().padStart(2,'0')}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+            }
+        }, 1000);
+    }
+
+    function togglePause() {
+        isPaused = !isPaused;
+        document.getElementById('gameTimer').style.opacity = isPaused ? "0.5" : "1";
+    }
+
+    // --- Standard Game Table Logic ---
+    function buildTable() {
+        const head = document.getElementById('gameHead');
+        const body = document.getElementById('gameBody');
+        head.innerHTML = `<tr><th class="sticky-col">Rnd</th>${activePlayers.map(p => `<th>${p}</th>`).join('')}</tr>`;
+        body.innerHTML = "";
+        for (let r = 1; r <= 7; r++) { addRoundRow(r); }
+    }
+
+    function addRoundRow(r) {
+        const body = document.getElementById('gameBody');
+        let html = `<tr id="row-score-${r}"><td class="sticky-col">${r} <button onclick="openCutSelection(${r})">C</button></td>`;
+        activePlayers.forEach((p, i) => { html += `<td id="cell-${r}-${i}" onclick="openKeypad(${r}, ${i})">0</td>`; });
+        html += `</tr><tr id="row-total-${r}" class="total-row"><td class="sticky-col">TOT</td>`;
+        activePlayers.forEach((p, i) => { html += `<td id="total-${r}-${i}">0</td>`; });
+        html += `</tr>`;
+        body.innerHTML += html;
+    }
+
+    function openCutSelection(r) {
+        document.getElementById('popupTitle').innerText = "Who got the Cut?";
+        const list = document.getElementById('popupList');
+        list.innerHTML = '';
+        activePlayers.forEach((p, i) => {
+            const btn = document.createElement('button');
+            btn.style.width = "100%"; btn.style.padding = "15px"; btn.style.margin = "5px 0";
+            btn.innerText = p;
+            btn.onclick = () => applyCut(r, i);
+            list.appendChild(btn);
+        });
+        document.getElementById('overlay').classList.remove('hidden');
+        document.getElementById('detailPopup').classList.remove('hidden');
+    }
+
+    function applyCut(round, playerIdx) {
+        closePopups();
+        const totalRow = document.getElementById(`row-total-${round}`);
+        const cutMultiple = activePlayers.length * 11;
+        const cutRow = document.createElement('tr');
+        cutRow.className = 'cut-row';
+        let inner = `<td class="sticky-col">CUT (${cutMultiple})</td>`;
+        activePlayers.forEach((p, i) => {
+            const isCutter = (i === playerIdx);
+            inner += `<td data-cutter="${isCutter ? cutMultiple : 0}">${isCutter ? 'Cut' : '50'}</td>`;
+        });
+        cutRow.innerHTML = inner;
+        totalRow.parentNode.insertBefore(cutRow, totalRow);
+        calculate();
+    }
+
+    let activeCell = null;
+    let kpVal = "";
+    let kpSh = false;
+    function openKeypad(r, i) {
+        activeCell = { r, i }; kpVal = ""; kpSh = false;
+        document.getElementById('kpDisplay').innerText = "0";
+        document.getElementById('keypadModal').classList.remove('hidden');
+    }
+    function kpInput(n) { kpVal += n; document.getElementById('kpDisplay').innerText = kpVal; }
+    function kpClear() { kpVal = ""; document.getElementById('kpDisplay').innerText = "0"; }
+    function kpToggleSH() { kpSh = !kpSh; document.getElementById('kpShBtn').style.background = kpSh ? "red" : "var(--warning)"; }
+    function kpEnter() {
+        const cell = document.getElementById(`cell-${activeCell.r}-${activeCell.i}`);
+        cell.innerText = kpVal || "0";
+        if (kpSh) cell.classList.add('sh-cell'); else cell.classList.remove('sh-cell');
+        document.getElementById('keypadModal').classList.add('hidden');
+        calculate();
+    }
+
+    function calculate() {
+        let runningTotals = new Array(activePlayers.length).fill(0);
+        for (let r = 1; r <= 7; r++) {
+            let roundFinals = [];
+            activePlayers.forEach((p, i) => {
+                let score = parseInt(document.getElementById(`cell-${r}-${i}`).innerText) || 0;
+                let row = document.getElementById(`row-score-${r}`);
+                let next = row.nextElementSibling;
+                while(next && next.className === 'cut-row') {
+                    score += (next.children[i+1].innerText === "50" ? 50 : 0);
+                    next = next.nextElementSibling;
+                }
+                runningTotals[i] += score;
+                roundFinals.push(runningTotals[i]);
+                document.getElementById(`total-${r}-${i}`).innerText = runningTotals[i];
+            });
+            const min = Math.min(...roundFinals); const max = Math.max(...roundFinals);
+            activePlayers.forEach((p, i) => {
+                const cell = document.getElementById(`total-${r}-${i}`);
+                cell.className = "";
+                if (roundFinals[i] === min) cell.classList.add('low-score');
+                if (roundFinals[i] === max) cell.classList.add('high-score');
+            });
+        }
+    }
+
+    function finalizeGame() {
+        if (!confirm("Submit scores?")) return;
+        clearInterval(timerInterval);
+        
+        let gameScores = activePlayers.map((p, i) => ({ name: p, total: parseInt(document.getElementById(`total-7-${i}`).innerText) }));
+        gameScores.sort((a, b) => a.total - b.total);
+        const winner = gameScores[0];
+        const loser = gameScores[gameScores.length - 1];
+
+        stats.gameTimes.push({ players: activePlayers.length, time: seconds });
+
+        // Update streaks and basic stats
+        activePlayers.forEach(p => {
+            const pd = stats.playerData[p];
+            if (p === winner.name) {
+                pd.wins++;
+                pd.currentWinStreak++;
+                pd.currentLossStreak = 0;
+                if (pd.currentWinStreak > pd.maxWinStreak) pd.maxWinStreak = pd.currentWinStreak;
+            } else if (p === loser.name) {
+                pd.losses++;
+                pd.currentLossStreak++;
+                pd.currentWinStreak = 0;
+                if (pd.currentLossStreak > pd.maxLossStreak) pd.maxLossStreak = pd.currentLossStreak;
+            } else {
+                // Participated but didn't win/lose - current streaks reset? 
+                // Usually streaks are "In games played", so we reset.
+                pd.currentWinStreak = 0;
+                pd.currentLossStreak = 0;
+            }
+
+            // Track SH in this game
+            for (let r = 1; r <= 7; r++) {
+                const cell = document.getElementById(`cell-${r}-${activePlayers.indexOf(p)}`);
+                if (cell.classList.contains('sh-cell')) {
+                    const s = parseInt(cell.innerText);
+                    pd.shCount++;
+                    stats.historySH.push({ name: p, score: s });
+                    if (s > pd.worstSHScore) pd.worstSHScore = s;
+                }
+            }
+        });
+
+        stats.historyWins.push(winner);
+        stats.historyLosses.push(loser);
+        if (winner.total < stats.playerData[winner.name].lowWin) stats.playerData[winner.name].lowWin = winner.total;
+        if (loser.total > stats.playerData[loser.name].highLoss) stats.playerData[loser.name].highLoss = loser.total;
+
+        document.querySelectorAll('.cut-row').forEach(row => {
+            activePlayers.forEach((p, i) => {
+                const cutVal = row.children[i+1].getAttribute('data-cutter');
+                if (cutVal && cutVal !== "0") {
+                    stats.playerData[p].cuts++;
+                    stats.cutBreakdown[cutVal]++;
+                }
+            });
+        });
+
+        localStorage.setItem('shanghaiProStatsV2', JSON.stringify(stats));
+        location.reload();
+    }
+
+    function renderOverallStats() {
+        const cont = document.getElementById('statsContainer');
+        const pData = stats.playerData;
+        const getHigh = (key) => Math.max(...allPlayers.map(p => pData[p][key]));
+        const getLow = (key) => Math.min(...allPlayers.map(p => pData[p][key] === 999 ? 1000 : pData[p][key]));
+
+        const maxW = getHigh('wins'), maxL = getHigh('losses'), maxWS = getHigh('maxWinStreak'), 
+              maxLS = getHigh('maxLossStreak'), worstSH = getHigh('worstSHScore');
+        
+        const shortTime = stats.gameTimes.length ? Math.min(...stats.gameTimes.map(t => t.time)) : 0;
+        const longTime = stats.gameTimes.length ? Math.max(...stats.gameTimes.map(t => t.time)) : 0;
+
+        let html = `<table><tr><th>Player</th><th>Wins</th><th>Losses</th><th>W Streak</th><th>L Streak</th><th class="clickable-header" onclick="showSHList()">Worst SH</th><th class="clickable-header" onclick="showHistory('wins')">Low Win</th><th class="clickable-header" onclick="showTimeHistory()">Time (S/L)</th></tr>`;
+        allPlayers.forEach(p => {
+            const d = pData[p];
+            html += `<tr>
+                <td>${p}</td>
+                <td class="${d.wins === maxW && maxW > 0 ? 'stat-best' : ''}">${d.wins}</td>
+                <td class="${d.losses === maxL && maxL > 0 ? 'stat-worst' : ''}">${d.losses}</td>
+                <td class="${d.maxWinStreak === maxWS && maxWS > 1 ? 'stat-best' : ''}">${d.maxWinStreak}</td>
+                <td class="${d.maxLossStreak === maxLS && maxLS > 1 ? 'stat-worst' : ''}">${d.maxLossStreak}</td>
+                <td>${d.worstSHScore}</td>
+                <td>${d.lowWin === 999 ? '-' : d.lowWin}</td>
+                <td>${formatS(shortTime)} / ${formatS(longTime)}</td>
+            </tr>`;
+        });
+        cont.innerHTML = html + `</table><div style='padding:10px; font-size:0.8em'>*Streak only counts games player participated in.</div>`;
+    }
+
+    function formatS(s) { 
+        if(!s) return "-";
+        let m = Math.floor(s/60); return `${m}m ${s%60}s`;
+    }
+
+    function showTab(tab) {
+        document.getElementById('navGame').className = (tab === 'game' ? 'active' : '');
+        document.getElementById('navStats').className = (tab === 'stats' ? 'active' : '');
+        document.getElementById('gameView').classList.add('hidden');
+        document.getElementById('statsView').classList.add('hidden');
+        document.getElementById('setupView').classList.add('hidden');
+        if (tab === 'game') document.getElementById('setupView').classList.remove('hidden');
+        else { document.getElementById('statsView').classList.remove('hidden'); renderOverallStats(); }
+    }
+
+    function showSHList() {
+        const list = [...stats.historySH].sort((a,b) => b.score - a.score);
+        openPopup("Shanghai History", list.map(i => `${i.name}: ${i.score}`));
+    }
+    function showHistory(type) {
+        const data = type === 'wins' ? stats.historyWins : stats.historyLosses;
+        const sorted = [...data].sort((a,b) => type === 'wins' ? a.total - b.total : b.total - a.total);
+        openPopup(type === 'wins' ? "Lowest Scores" : "Highest Scores", sorted.map(i => `${i.name}: ${i.total}`));
+    }
+    function showTimeHistory() {
+        const sorted = [...stats.gameTimes].sort((a,b) => a.time - b.time);
+        openPopup("Game Durations", sorted.map(i => `${i.players} players: ${formatS(i.time)}`));
+    }
+    function openPopup(title, items) {
+        document.getElementById('popupTitle').innerText = title;
+        document.getElementById('popupList').innerHTML = items.length ? items.map(i => `<li>${i}</li>`).join('') : "No data";
+        document.getElementById('overlay').classList.remove('hidden');
+        document.getElementById('detailPopup').classList.remove('hidden');
+    }
+    function closePopups() { document.getElementById('overlay').classList.add('hidden'); document.getElementById('detailPopup').classList.add('hidden'); }
+
+    function generateTestData() {
+        allPlayers.forEach(p => {
+            stats.playerData[p].maxWinStreak = Math.floor(Math.random() * 4);
+            stats.playerData[p].currentWinStreak = stats.playerData[p].maxWinStreak;
+            stats.playerData[p].wins = Math.floor(Math.random() * 10);
+        });
+        localStorage.setItem('shanghaiProStatsV2', JSON.stringify(stats));
+        alert("TestData: Streaks added. Start a game with Ashley or Mitch to see banner.");
+        location.reload();
+    }
+
+    initSetup();
+</script>
+</body>
+</html>
