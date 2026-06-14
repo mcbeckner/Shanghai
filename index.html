@@ -21,6 +21,9 @@
         .player-chip { display: inline-block; padding: 15px 25px; margin: 5px; border-radius: 25px; background: white; border: 2px solid #ccc; font-weight: bold; }
         .player-chip.selected { background: var(--accent); color: white; border-color: var(--accent); }
 
+        @keyframes flashRed { 0% { background: red; } 50% { background: yellow; } 100% { background: red; } }
+        #streakBanner { position: fixed; top:0; left:0; width:100%; height:100%; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; animation: flashRed 0.2s infinite; text-align: center; padding: 20px; box-sizing: border-box; }
+
         .table-wrap { overflow: auto; background: white; max-height: 80vh; -webkit-overflow-scrolling: touch; }
         table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 600px; }
         th, td { border: 1px solid #ccc; padding: 10px; text-align: center; }
@@ -42,19 +45,16 @@
         .kp-container button { padding: 15px 0; font-size: 1.4em; border-radius: 10px; border: none; background: white; font-weight: bold; }
         .btn-sh { background: var(--warning) !important; color: white; flex: 1; }
         .btn-ent { background: var(--accent) !important; color: white; flex: 2; }
-        .btn-clear { background: #95a5a6 !important; color: white; }
 
         .stat-best { background: rgba(46, 204, 113, 0.4) !important; font-weight: bold; }
         .stat-worst { background: rgba(231, 76, 60, 0.4) !important; font-weight: bold; }
+        .clickable-header { text-decoration: underline; color: var(--blue); cursor: pointer; }
 
-        .game-history-entry { background: white; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ccc; padding: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; }
-        .delete-game-btn { position: absolute; top: 8px; right: 8px; background: var(--danger); color: white; border: none; border-radius: 50%; width: 28px; height: 28px; font-weight: bold; cursor: pointer; }
-
+        .game-history-entry { background: white; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ccc; padding: 15px; position: relative; }
+        .delete-game-btn { position: absolute; top: 8px; right: 8px; background: var(--danger); color: white; border: none; border-radius: 50%; width: 28px; height: 28px; font-weight: bold; cursor: pointer; z-index: 10;}
+        
         .popup-full-scoreboard { border-collapse: collapse; width: 100%; margin-top: 10px; }
         .popup-full-scoreboard th, .popup-full-scoreboard td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-        .popup-full-scoreboard .sh-cell-popup { background-color: var(--warning); color: white; }
-        .popup-full-scoreboard .low-score-popup { background-color: #2ecc71 !important; color: white; }
-        .popup-full-scoreboard .high-score-popup { background-color: #e74c3c !important; color: white; }
     </style>
 </head>
 <body>
@@ -66,20 +66,29 @@
     <div id="gameTimer" class="hidden">00:00:00</div>
 </div>
 
+<div id="streakBanner" class="hidden">
+    <h1 id="streakText" style="font-size: 2em; margin-bottom: 20px;"></h1>
+    <button id="dismissStreakBtn" style="padding: 15px 30px; font-size: 1.2em; background: white; border: 4px solid black; border-radius: 12px; font-weight: bold;">Ok!</button>
+</div>
+
 <div id="setupView" class="hidden">
     <h2>Who is playing?</h2>
     <div id="playerSelectContainer"></div>
-    <button id="addGuestBtn" style="margin-top:10px; padding: 10px 20px; background: #95a5a6; color: white; border: none; border-radius: 8px; font-weight: bold;">+ Add Guest Player</button>
+    <button id="addGuestBtn" style="margin-top:10px; padding: 10px 20px; background: #95a5a6; color: white; border: none; border-radius: 8px; font-weight: bold;">+ Guest</button>
     <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
         <button id="seatAssignBtn" style="padding: 15px 20px; background: var(--blue); color: white; border: none; border-radius: 8px; font-weight: bold;">RANDOM SEATING</button>
         <button id="startGameBtn" style="padding: 15px 40px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold;">START GAME</button>
+    </div>
+    <div id="setupInfo" style="text-align: center; padding: 15px; font-weight: bold; color: var(--primary);">
+        <div id="setupLastWinner"></div>
+        <div id="setupTotalGames"></div>
     </div>
 </div>
 
 <div id="seatingView" class="hidden">
     <h2>Seating Order</h2>
     <ul id="seatingList" style="list-style: none; padding: 0; font-size: 1.5em; font-weight: bold; background: white; border-radius: 10px;"></ul>
-    <button id="startGameFromSeatingBtn" style="padding: 15px 40px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; width: 100%;">START</button>
+    <button id="startGameFromSeatingBtn" style="padding: 15px 40px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; width: 100%;">START IN THIS ORDER</button>
 </div>
 
 <div id="gameView" class="hidden">
@@ -150,29 +159,17 @@
     let activePlayers = [], guestPlayers = [], stats = null;
     let startTime, accumulatedTime = 0, timerRunning = false, timerInterval, activeCell = null, kpVal = "", kpSh = false;
 
-    async function loadStats(year) {
-        const docSnap = await getDoc(doc(db, "shanghaiStats", year));
-        if (docSnap.exists()) { 
-            stats = docSnap.data(); 
-            if (!stats.fullGames) stats.fullGames = [];
-        } else { 
-            stats = getEmptyStats(); 
-            await setDoc(doc(db, "shanghaiStats", year), stats); 
-        }
-        updateStatsDisplays();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playAlarm() {
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.15);
     }
 
-    function getEmptyStats() {
-        return {
-            playerData: allPlayers.reduce((acc, p) => {
-                acc[p] = { wins: 0, losses: 0, shCount: 0, cuts: 0, worstSHScore: 0, lowWin: 999, highLoss: 0, maxWinStreak: 0, currentWinStreak: 0, maxLossStreak: 0, currentLossStreak: 0, cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 } }; return acc;
-            }, {}),
-            historySH: [], historyWins: [], historyLosses: [], gameTimes: [], fullGames: [],
-            cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 }
-        };
-    }
-
-    // --- CRITICAL UPDATE: RECALCULATION ENGINE ---
+    // --- RECALCULATION HELPER (To keep stats correct on deletion) ---
     function recalculateAllStats() {
         const resetData = allPlayers.reduce((acc, p) => {
             acc[p] = { wins: 0, losses: 0, shCount: 0, cuts: 0, worstSHScore: 0, lowWin: 999, highLoss: 0, maxWinStreak: 0, currentWinStreak: 0, maxLossStreak: 0, currentLossStreak: 0, cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 } }; return acc;
@@ -190,12 +187,16 @@
 
             if(allPlayers.includes(win.name)) {
                 const pd = stats.playerData[win.name];
-                pd.wins++; stats.historyWins.push({...win, gameTimestamp: game.timestamp});
+                pd.wins++; pd.currentWinStreak++; pd.currentLossStreak = 0;
+                if (pd.currentWinStreak > pd.maxWinStreak) pd.maxWinStreak = pd.currentWinStreak;
+                stats.historyWins.push({...win, gameTimestamp: game.timestamp});
                 if(win.total < pd.lowWin) pd.lowWin = win.total;
             }
             if(allPlayers.includes(los.name)) {
                 const pd = stats.playerData[los.name];
-                pd.losses++; stats.historyLosses.push({...los, gameTimestamp: game.timestamp});
+                pd.losses++; pd.currentLossStreak++; pd.currentWinStreak = 0;
+                if (pd.currentLossStreak > pd.maxLossStreak) pd.maxLossStreak = pd.currentLossStreak;
+                stats.historyLosses.push({...los, gameTimestamp: game.timestamp});
                 if(los.total > pd.highLoss) pd.highLoss = los.total;
             }
 
@@ -222,43 +223,36 @@
         });
     }
 
-    async function deleteGame(timestamp) {
-        if (!confirm("Remove this game and recalculate all stats?")) return;
-        stats.fullGames = stats.fullGames.filter(g => g.timestamp !== timestamp);
-        recalculateAllStats();
-        await setDoc(doc(db, "shanghaiStats", currentYear), stats);
-        renderGameHistory(); renderOverallStats(); updateStatsDisplays();
+    async function loadStats(year) {
+        const docSnap = await getDoc(doc(db, "shanghaiStats", year));
+        if (docSnap.exists()) { 
+            stats = docSnap.data(); 
+            if (!stats.fullGames) stats.fullGames = [];
+            // Migration for existing data to ensure breakdown objects exist
+            allPlayers.forEach(p => { if (stats.playerData[p] && !stats.playerData[p].cutBreakdown) stats.playerData[p].cutBreakdown = { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 }; });
+        } else { 
+            stats = { playerData: allPlayers.reduce((acc, p) => { acc[p] = { wins: 0, losses: 0, shCount: 0, cuts: 0, worstSHScore: 0, lowWin: 999, highLoss: 0, maxWinStreak: 0, currentWinStreak: 0, maxLossStreak: 0, currentLossStreak: 0, cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 } }; return acc; }, {}), historySH: [], historyWins: [], historyLosses: [], gameTimes: [], fullGames: [], cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 } };
+            await setDoc(doc(db, "shanghaiStats", year), stats); 
+        }
+        updateStatsDisplays();
     }
 
     async function finalizeGame() {
-        if (!confirm("Save Game?")) return;
+        if (!confirm("Submit scores?")) return;
         const dur = Math.floor((Date.now() - startTime) / 1000);
         clearInterval(timerInterval); timerRunning = false;
         
-        let detailedRounds = [];
-        let detailedCuts = [];
-
+        let detailedRounds = []; let detailedCuts = [];
         for (let r = 1; r <= 7; r++) {
-            let rd = {};
-            activePlayers.forEach((p, i) => {
-                const cell = document.getElementById(`cell-${r}-${i}`);
-                rd[p] = { score: parseInt(cell.innerText) || 0, isSH: cell.classList.contains('sh-cell') };
-            });
+            let rd = {}; activePlayers.forEach((p, i) => { rd[p] = { score: parseInt(document.getElementById(`cell-${r}-${i}`).innerText) || 0, isSH: document.getElementById(`cell-${r}-${i}`).classList.contains('sh-cell') }; });
             detailedRounds.push(rd);
-
-            let row = document.getElementById(`row-score-${r}`);
-            let next = row.nextElementSibling;
+            let row = document.getElementById(`row-score-${r}`); let next = row.nextElementSibling;
             while (next && next.classList.contains('cut-row')) {
                 let cd = { round: r, playersAffected: [] };
-                activePlayers.forEach((p, i) => {
-                    const cell = next.children[i + 1];
-                    cd.playersAffected.push({ player: p, value: cell.innerText, isCutter: cell.getAttribute('data-cutter') !== "0" });
-                });
-                detailedCuts.push(cd);
-                next = next.nextElementSibling;
+                activePlayers.forEach((p, i) => { cd.playersAffected.push({ player: p, value: next.children[i + 1].innerText, isCutter: next.children[i + 1].getAttribute('data-cutter') !== "0" }); });
+                detailedCuts.push(cd); next = next.nextElementSibling;
             }
         }
-
         const scores = activePlayers.map((p, i) => ({ name: p, total: parseInt(document.getElementById(`total-7-${i}`).innerText) }));
         stats.fullGames.push({ timestamp: Date.now(), date: new Date().toLocaleString(), duration: dur, scores, players: activePlayers, rounds: detailedRounds, cutsData: detailedCuts });
         
@@ -266,6 +260,14 @@
         await setDoc(doc(db, "shanghaiStats", currentYear), stats);
         await loadStats(currentYear);
         showTab('stats');
+    }
+
+    async function deleteGame(timestamp) {
+        if (!confirm("Delete and recalculate?")) return;
+        stats.fullGames = stats.fullGames.filter(g => g.timestamp !== timestamp);
+        recalculateAllStats();
+        await setDoc(doc(db, "shanghaiStats", currentYear), stats);
+        renderGameHistory(); renderOverallStats(); updateStatsDisplays();
     }
 
     function updateStatsDisplays() {
@@ -276,8 +278,8 @@
             const w = [...last.scores].sort((a,b) => a.total-b.total)[0];
             winT = `Last Winner: ${w.name} (${w.total})`;
         }
-        document.getElementById('statsLastWinner').innerText = winT;
-        document.getElementById('statsTotalGames').innerText = totalT;
+        document.querySelectorAll('[id$="LastWinner"]').forEach(el => el.innerText = winT);
+        document.querySelectorAll('[id$="TotalGames"]').forEach(el => el.innerText = totalT);
     }
 
     function buildTable() {
@@ -300,41 +302,22 @@
             activePlayers.forEach((p, i) => {
                 let score = parseInt(document.getElementById(`cell-${r}-${i}`).innerText) || 0;
                 let next = document.getElementById(`row-score-${r}`).nextElementSibling;
-                while(next && next.className === 'cut-row') {
-                    if(next.children[i+1].innerText === "50") score += 50;
-                    next = next.nextElementSibling;
-                }
-                running[i] += score;
-                document.getElementById(`total-${r}-${i}`).innerText = running[i];
+                while(next && next.className === 'cut-row') { if(next.children[i+1].innerText === "50") score += 50; next = next.nextElementSibling; }
+                running[i] += score; document.getElementById(`total-${r}-${i}`).innerText = running[i];
             });
             const min = Math.min(...running), max = Math.max(...running);
-            activePlayers.forEach((p, i) => {
-                const cell = document.getElementById(`total-${r}-${i}`);
-                cell.className = (running[i] === min) ? 'low-score' : (running[i] === max) ? 'high-score' : '';
-            });
+            activePlayers.forEach((p, i) => { document.getElementById(`total-${r}-${i}`).className = (running[i] === min) ? 'low-score' : (running[i] === max) ? 'high-score' : ''; });
         }
     }
 
-    window.openKeypad = (r, i, p) => {
-        activeCell = { r, i }; kpVal = ""; kpSh = false;
-        document.getElementById('kpDisplay').innerText = "0";
-        document.getElementById('kpShBtn').style.background = 'var(--warning)';
-        document.getElementById('keypadModal').classList.remove('hidden');
-    };
-
+    window.openKeypad = (r, i, p) => { activeCell = { r, i }; kpVal = ""; kpSh = false; document.getElementById('kpDisplay').innerText = "0"; document.getElementById('kpShBtn').style.background = 'var(--warning)'; document.getElementById('keypadModal').classList.remove('hidden'); };
     window.openCutSelection = (r) => {
         const list = document.getElementById('popupList'); list.innerHTML = '';
         activePlayers.forEach((p, i) => {
-            const btn = document.createElement('button');
-            btn.style.width = "100%"; btn.style.padding = "15px"; btn.innerText = p;
+            const btn = document.createElement('button'); btn.style.width = "100%"; btn.style.padding = "15px"; btn.innerText = p;
             btn.onclick = () => {
-                const cutVal = activePlayers.length * 11;
-                const row = document.createElement('tr'); row.className = 'cut-row';
-                let inner = `<td class="sticky-col">CUT</td>`;
-                activePlayers.forEach((_, idx) => {
-                    const isC = (idx === i);
-                    inner += `<td data-cutter="${isC ? cutVal : 0}">${isC ? 'Cut' : '50'}</td>`;
-                });
+                const cutVal = activePlayers.length * 11; const row = document.createElement('tr'); row.className = 'cut-row';
+                let inner = `<td class="sticky-col">CUT</td>`; activePlayers.forEach((_, idx) => { const isC = (idx === i); inner += `<td data-cutter="${isC ? cutVal : 0}">${isC ? 'Cut' : '50'}</td>`; });
                 row.innerHTML = inner; document.getElementById(`row-total-${r}`).parentNode.insertBefore(row, document.getElementById(`row-total-${r}`));
                 calculate(); closePopups();
             };
@@ -344,55 +327,44 @@
     };
 
     function renderOverallStats() {
-        const cont = document.getElementById('statsContainer');
-        const pData = stats.playerData;
-        let html = `<table><thead><tr><th class="sticky-col">Player</th><th>Wins</th><th>Losses</th><th>SH</th><th>Worst SH</th><th>Cuts</th><th>Low Win</th></tr></thead><tbody>`;
+        const cont = document.getElementById('statsContainer'); const pData = stats.playerData;
+        const getHigh = (k) => Math.max(...allPlayers.map(p => pData[p][k]));
+        const getLow = (k) => Math.min(...allPlayers.map(p => pData[p][k] === 999 ? 1000 : pData[p][k]));
+        const maxW = getHigh('wins'), maxL = getHigh('losses'), maxSH = getHigh('shCount'), maxWS = getHigh('maxWinStreak'), worstSH = getHigh('worstSHScore'), bestW = getLow('lowWin'), worstL = getHigh('highLoss');
+
+        let html = `<table><thead><tr><th class="sticky-col">Player</th><th>Wins</th><th>Losses</th><th>W-Streak</th><th>Most SH</th><th id="shHeader" class="clickable-header">Worst SH</th><th id="cutHeader" class="clickable-header">Cuts</th><th id="winHeader" class="clickable-header">Low Win</th><th id="lossHeader" class="clickable-header">High Loss</th><th id="timeHeader" class="clickable-header">Short/Long</th></tr></thead><tbody>`;
         allPlayers.forEach(p => {
-            const d = pData[p];
-            html += `<tr><td class="sticky-col">${p}</td><td>${d.wins}</td><td>${d.losses}</td><td>${d.shCount}</td><td>${d.worstSHScore}</td><td>${d.cuts}</td><td>${d.lowWin === 999 ? '-' : d.lowWin}</td></tr>`;
+            const d = pData[p]; const sTime = stats.gameTimes.length ? Math.min(...stats.gameTimes.map(t => t.time)) : 0; const lTime = stats.gameTimes.length ? Math.max(...stats.gameTimes.map(t => t.time)) : 0;
+            html += `<tr><td class="sticky-col">${p}</td><td class="${d.wins === maxW && maxW > 0 ? 'stat-best' : ''}">${d.wins}</td><td class="${d.losses === maxL && maxL > 0 ? 'stat-worst' : ''}">${d.losses}</td><td class="${d.maxWinStreak === maxWS && maxWS > 1 ? 'stat-best' : ''}">${d.maxWinStreak}</td><td>${d.shCount}</td><td>${d.worstSHScore}</td><td class="player-cut-cell clickable-header" data-player="${p}">${d.cuts}</td><td>${d.lowWin === 999 ? '-' : d.lowWin}</td><td>${d.highLoss}</td><td>${formatS(sTime)} / ${formatS(lTime)}</td></tr>`;
         });
         cont.innerHTML = html + `</tbody></table>`;
+        document.querySelectorAll('.player-cut-cell').forEach(cell => { cell.onclick = () => { const p = cell.dataset.player; const b = stats.playerData[p].cutBreakdown || {}; openPopup(`${p}'s Cuts`, Object.keys(b).filter(k => b[k] > 0).map(k => `${k}: ${b[k]}`)); }; });
+        document.getElementById('shHeader').onclick = () => openPopup("Shanghai History", stats.historySH.map(i => `${i.name}: ${i.score}`));
+        document.getElementById('cutHeader').onclick = () => openPopup("Global Cuts", Object.keys(stats.cutBreakdown).filter(k => stats.cutBreakdown[k] > 0).map(k => `${k}: ${stats.cutBreakdown[k]}`));
+        document.getElementById('winHeader').onclick = () => openPopup("Wins", stats.historyWins.map(i => `${i.name}: ${i.total}`));
+        document.getElementById('lossHeader').onclick = () => openPopup("Losses", stats.historyLosses.map(i => `${i.name}: ${i.total}`));
+        document.getElementById('timeHeader').onclick = () => openPopup("Game Times", stats.gameTimes.map(i => `${i.players}p: ${formatS(i.time)}`));
     }
 
     function renderGameHistory() {
-        const cont = document.getElementById('historyContainer');
-        const sorted = [...stats.fullGames].sort((a,b) => b.timestamp - a.timestamp);
-        cont.innerHTML = sorted.map(g => `
-            <div class="game-history-entry">
-                <button class="delete-game-btn" onclick="deleteGame(${g.timestamp})">X</button>
-                <div onclick='showGameDetails(${JSON.stringify(g)})'>
-                    <strong>${g.date}</strong>
-                    ${[...g.scores].sort((a,b)=>a.total-b.total).map(s => `<div>${s.name}: ${s.total}</div>`).join('')}
-                </div>
-            </div>`).join('');
+        const cont = document.getElementById('historyContainer'); const sorted = [...stats.fullGames].sort((a,b) => b.timestamp - a.timestamp);
+        cont.innerHTML = sorted.map(g => `<div class="game-history-entry"><button class="delete-game-btn" onclick="deleteGame(${g.timestamp})">X</button><div onclick='showGameDetails(${JSON.stringify(g)})'><strong>${g.date}</strong>${[...g.scores].sort((a,b)=>a.total-b.total).map((s,i) => `<div style="${i==0?'color:var(--accent)':''}">${s.name}: ${s.total}</div>`).join('')}</div></div>`).join('');
     }
 
     window.showGameDetails = (game) => {
-        document.getElementById('popupTitle').innerText = game.date;
-        let table = `<table class="popup-full-scoreboard"><tr><th>Rnd</th>${game.players.map(p=>`<th>${p}</th>`).join('')}</tr>`;
+        document.getElementById('popupTitle').innerText = game.date; let table = `<table class="popup-full-scoreboard"><tr><th>Rnd</th>${game.players.map(p=>`<th>${p}</th>`).join('')}</tr>`;
         let totals = new Array(game.players.length).fill(0);
         game.rounds.forEach((rd, rIdx) => {
-            table += `<tr><td>${rIdx+1}</td>${game.players.map((p, pi) => {
-                totals[pi] += rd[p].score;
-                return `<td class="${rd[p].isSH ? 'sh-cell-popup':''}">${rd[p].score}</td>`;
-            }).join('')}</tr>`;
-            game.cutsData.filter(c => c.round === (rIdx+1)).forEach(cd => {
-                table += `<tr style="background:#d1ecf1"><td>CUT</td>${game.players.map((p, pi) => {
-                    const pa = cd.playersAffected.find(x => x.player === p);
-                    if(pa.value === '50') totals[pi] += 50;
-                    return `<td>${pa.value}</td>`;
-                }).join('')}</tr>`;
-            });
+            table += `<tr><td>${rIdx+1}</td>${game.players.map((p, pi) => { totals[pi] += rd[p].score; return `<td class="${rd[p].isSH ? 'sh-cell-popup':''}">${rd[p].score}</td>`; }).join('')}</tr>`;
+            game.cutsData.filter(c => c.round === (rIdx+1)).forEach(cd => { table += `<tr style="background:#d1ecf1"><td>CUT</td>${game.players.map((p, pi) => { const pa = cd.playersAffected.find(x => x.player === p); if(pa.value === '50') totals[pi] += 50; return `<td>${pa.value}</td>`; }).join('')}</tr>`; });
             table += `<tr style="font-weight:bold"><td>TOT</td>${totals.map(t => `<td>${t}</td>`).join('')}</tr>`;
         });
-        document.getElementById('popupContent').innerHTML = table + `</table>`;
-        document.getElementById('overlay').classList.remove('hidden'); document.getElementById('detailPopup').classList.remove('hidden');
+        document.getElementById('popupContent').innerHTML = table + `</table>`; document.getElementById('overlay').classList.remove('hidden'); document.getElementById('detailPopup').classList.remove('hidden');
     };
 
     function showTab(t) {
-        document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
-        document.getElementById('nav'+t.charAt(0).toUpperCase()+t.slice(1)).classList.add('active');
-        document.getElementById('gameView').classList.add('hidden'); document.getElementById('statsView').classList.add('hidden'); document.getElementById('historyView').classList.add('hidden'); document.getElementById('setupView').classList.add('hidden');
+        document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active')); document.getElementById('nav'+t.charAt(0).toUpperCase()+t.slice(1)).classList.add('active');
+        document.getElementById('gameView').classList.add('hidden'); document.getElementById('statsView').classList.add('hidden'); document.getElementById('historyView').classList.add('hidden'); document.getElementById('setupView').classList.add('hidden'); document.getElementById('seatingView').classList.add('hidden');
         if(t === 'game') { if(timerRunning) document.getElementById('gameView').classList.remove('hidden'); else document.getElementById('setupView').classList.remove('hidden'); }
         if(t === 'stats') { document.getElementById('statsView').classList.remove('hidden'); renderOverallStats(); }
         if(t === 'history') { document.getElementById('historyView').classList.remove('hidden'); renderGameHistory(); }
@@ -402,40 +374,31 @@
     document.getElementById('navStats').onclick = () => showTab('stats');
     document.getElementById('navHistory').onclick = () => showTab('history');
     document.getElementById('startGameBtn').onclick = () => {
-        document.getElementById('setupView').classList.add('hidden'); document.getElementById('gameView').classList.remove('hidden');
-        document.getElementById('gameTimer').classList.remove('hidden'); startTime = Date.now(); timerRunning = true; buildTable();
-        timerInterval = setInterval(() => { const s = Math.floor((Date.now()-startTime)/1000); document.getElementById('gameTimer').innerText = formatS(s); }, 1000);
+        let msg = ""; activePlayers.forEach(p => { if (allPlayers.includes(p) && stats.playerData[p].currentWinStreak > 1) msg += `${p.toUpperCase()} STREAK: ${stats.playerData[p].currentWinStreak}<br>`; });
+        if (msg) { document.getElementById('streakText').innerHTML = msg; document.getElementById('streakBanner').classList.remove('hidden'); window.streakAlarm = setInterval(playAlarm, 400); } else startActualGame();
     };
-    document.getElementById('kpEnterBtn').onclick = () => {
-        const cell = document.getElementById(`cell-${activeCell.r}-${activeCell.i}`);
-        cell.innerText = kpVal || "0";
-        if(kpSh) cell.classList.add('sh-cell'); else cell.classList.remove('sh-cell');
-        document.getElementById('keypadModal').classList.add('hidden'); calculate();
-    };
+    document.getElementById('dismissStreakBtn').onclick = () => { clearInterval(window.streakAlarm); document.getElementById('streakBanner').classList.add('hidden'); startActualGame(); };
+    function startActualGame() { document.getElementById('setupView').classList.add('hidden'); document.getElementById('seatingView').classList.add('hidden'); document.getElementById('gameView').classList.remove('hidden'); document.getElementById('gameTimer').classList.remove('hidden'); startTime = Date.now(); timerRunning = true; buildTable(); timerInterval = setInterval(() => { document.getElementById('gameTimer').innerText = formatS(Math.floor((Date.now()-startTime)/1000)); }, 1000); }
+    document.getElementById('seatAssignBtn').onclick = () => { if (activePlayers.length < 2) return alert("Select players"); for (let i = activePlayers.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [activePlayers[i], activePlayers[j]] = [activePlayers[j], activePlayers[i]]; } document.getElementById('seatingList').innerHTML = activePlayers.map((p, i) => `<li>Seat ${i+1}: ${p}</li>`).join(''); document.getElementById('setupView').classList.add('hidden'); document.getElementById('seatingView').classList.remove('hidden'); };
+    document.getElementById('startGameFromSeatingBtn').onclick = () => document.getElementById('startGameBtn').click();
+    document.getElementById('addGuestBtn').onclick = () => { const n = prompt("Guest Name:"); if(n){ guestPlayers.push(n); activePlayers.push(n); initSetup(); } };
+    document.getElementById('finalizeBtn').onclick = finalizeGame;
+    document.getElementById('closePopupBtn').onclick = closePopups;
+    document.getElementById('kpEnterBtn').onclick = () => { const cell = document.getElementById(`cell-${activeCell.r}-${activeCell.i}`); cell.innerText = kpVal || "0"; if(kpSh) cell.classList.add('sh-cell'); else cell.classList.remove('sh-cell'); document.getElementById('keypadModal').classList.add('hidden'); calculate(); };
     document.querySelectorAll('.kp-num').forEach(b => b.onclick = () => { kpVal += b.dataset.val; document.getElementById('kpDisplay').innerText = kpVal; });
     document.getElementById('kpClearBtn').onclick = () => { kpVal = ""; document.getElementById('kpDisplay').innerText = "0"; };
     document.getElementById('kpShBtn').onclick = () => { kpSh = !kpSh; document.getElementById('kpShBtn').style.background = kpSh ? 'red' : 'var(--warning)'; };
-    document.getElementById('finalizeBtn').onclick = finalizeGame;
-    document.getElementById('closePopupBtn').onclick = closePopups;
     function formatS(s) { return `${Math.floor(s/60)}m ${s%60}s`; }
     function closePopups() { document.getElementById('overlay').classList.add('hidden'); document.getElementById('detailPopup').classList.add('hidden'); }
+    function openPopup(t, i) { document.getElementById('popupTitle').innerText = t; document.getElementById('popupContent').innerHTML = ''; document.getElementById('popupList').innerHTML = i.map(x => `<li>${x}</li>`).join(''); document.getElementById('overlay').classList.remove('hidden'); document.getElementById('detailPopup').classList.remove('hidden'); }
+    
+    function initSetup() {
+        const cont = document.getElementById('playerSelectContainer'); cont.innerHTML = '';
+        allPlayers.forEach(p => { const d = document.createElement('div'); d.className = 'player-chip' + (activePlayers.includes(p)?' selected':''); d.innerText = p; d.onclick = () => { d.classList.toggle('selected'); if(activePlayers.includes(p)) activePlayers = activePlayers.filter(x=>x!==p); else activePlayers.push(p); }; cont.appendChild(d); });
+        guestPlayers.forEach(p => { const d = document.createElement('div'); d.className = 'player-chip selected'; d.innerText = p + " (Guest)"; d.onclick = () => { guestPlayers = guestPlayers.filter(g=>g!==p); activePlayers = activePlayers.filter(a=>a!==p); initSetup(); }; cont.appendChild(d); });
+    }
 
-    (async () => {
-        window.deleteGame = deleteGame;
-        const snp = await getDocs(collection(db, "shanghaiStats"));
-        const ys = document.getElementById('yearSelect');
-        let yArr = []; snp.forEach(d => yArr.push(d.id));
-        if(!yArr.includes(currentYear)) yArr.push(currentYear);
-        ys.innerHTML = yArr.sort().reverse().map(y => `<option value="${y}">${y}</option>`).join('');
-        await loadStats(currentYear);
-        const cont = document.getElementById('playerSelectContainer');
-        allPlayers.forEach(p => {
-            const d = document.createElement('div'); d.className = 'player-chip'; d.innerText = p;
-            d.onclick = () => { d.classList.toggle('selected'); if(activePlayers.includes(p)) activePlayers = activePlayers.filter(x=>x!==p); else activePlayers.push(p); };
-            cont.appendChild(d);
-        });
-        showTab('stats');
-    })();
+    (async () => { window.deleteGame = deleteGame; window.showGameDetails = showGameDetails; const snp = await getDocs(collection(db, "shanghaiStats")); const ys = document.getElementById('yearSelect'); let yArr = []; snp.forEach(d => yArr.push(d.id)); if(!yArr.includes(currentYear)) yArr.push(currentYear); ys.innerHTML = yArr.sort().reverse().map(y => `<option value="${y}">${y}</option>`).join(''); await loadStats(currentYear); initSetup(); showTab('stats'); })();
 </script>
 </body>
 </html>
