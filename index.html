@@ -185,19 +185,32 @@
 
             stats.gameTimes.push({ players: game.players.length, time: game.duration, timestamp: game.timestamp });
 
+            // Accurately reset streaks for ALL players in the game
+            game.players.forEach(p => {
+                if (allPlayers.includes(p)) {
+                    const pd = stats.playerData[p];
+                    if (p === win.name) {
+                        pd.currentWinStreak++; pd.currentLossStreak = 0;
+                        if (pd.currentWinStreak > pd.maxWinStreak) pd.maxWinStreak = pd.currentWinStreak;
+                    } else if (p === los.name) {
+                        pd.currentLossStreak++; pd.currentWinStreak = 0;
+                        if (pd.currentLossStreak > pd.maxLossStreak) pd.maxLossStreak = pd.currentLossStreak;
+                    } else {
+                        // Middle of the pack: breaks BOTH streaks
+                        pd.currentWinStreak = 0; pd.currentLossStreak = 0;
+                    }
+                }
+            });
+
             if(allPlayers.includes(win.name)) {
-                const pd = stats.playerData[win.name];
-                pd.wins++; pd.currentWinStreak++; pd.currentLossStreak = 0;
-                if (pd.currentWinStreak > pd.maxWinStreak) pd.maxWinStreak = pd.currentWinStreak;
+                stats.playerData[win.name].wins++;
                 stats.historyWins.push({...win, gameTimestamp: game.timestamp});
-                if(win.total < pd.lowWin) pd.lowWin = win.total;
+                if(win.total < stats.playerData[win.name].lowWin) stats.playerData[win.name].lowWin = win.total;
             }
             if(allPlayers.includes(los.name)) {
-                const pd = stats.playerData[los.name];
-                pd.losses++; pd.currentLossStreak++; pd.currentWinStreak = 0;
-                if (pd.currentLossStreak > pd.maxLossStreak) pd.maxLossStreak = pd.currentLossStreak;
+                stats.playerData[los.name].losses++;
                 stats.historyLosses.push({...los, gameTimestamp: game.timestamp});
-                if(los.total > pd.highLoss) pd.highLoss = los.total;
+                if(los.total > stats.playerData[los.name].highLoss) stats.playerData[los.name].highLoss = los.total;
             }
 
             game.rounds.forEach(round => {
@@ -234,6 +247,7 @@
             stats = { playerData: allPlayers.reduce((acc, p) => { acc[p] = { wins: 0, losses: 0, shCount: 0, cuts: 0, worstSHScore: 0, lowWin: 999, highLoss: 0, maxWinStreak: 0, currentWinStreak: 0, maxLossStreak: 0, currentLossStreak: 0, cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 } }; return acc; }, {}), historySH: [], historyWins: [], historyLosses: [], gameTimes: [], fullGames: [], cutBreakdown: { 22:0, 33:0, 44:0, 55:0, 66:0, 77:0, 88:0 } };
             await setDoc(doc(db, "shanghaiStats", year), stats); 
         }
+        recalculateAllStats(); // Automatically repairs streaks on load
         updateStatsDisplays();
     }
 
@@ -302,7 +316,7 @@
             activePlayers.forEach((p, i) => {
                 let score = parseInt(document.getElementById(`cell-${r}-${i}`).innerText) || 0;
                 let next = document.getElementById(`row-score-${r}`).nextElementSibling;
-                while(next && next.className === 'cut-row') { if(next.children[i+1].innerText === "50") score += 50; next = next.nextElementSibling; }
+                while(next && next.classList.contains('cut-row')) { if(next.children[i+1].innerText === "50") score += 50; next = next.nextElementSibling; }
                 running[i] += score; document.getElementById(`total-${r}-${i}`).innerText = running[i];
             });
             const min = Math.min(...running), max = Math.max(...running);
@@ -310,7 +324,7 @@
         }
     }
 
-    window.openKeypad = (r, i, p) => { activeCell = { r, i }; kpVal = ""; kpSh = false; document.getElementById('kpDisplay').innerText = "0"; document.getElementById('kpShBtn').style.background = 'var(--warning)'; document.getElementById('keypadModal').classList.remove('hidden'); };
+    window.openKeypad = (r, i, p) => { activeCell = { r, i }; kpVal = ""; kpSh = false; document.getElementById('kpDisplay').innerText = "0"; document.getElementById('kpShBtn').style.setProperty('background', 'var(--warning)', 'important'); document.getElementById('keypadModal').classList.remove('hidden'); };
     window.openCutSelection = (r) => {
         const list = document.getElementById('popupList'); list.innerHTML = '';
         activePlayers.forEach((p, i) => {
@@ -330,25 +344,62 @@
         const cont = document.getElementById('statsContainer'); const pData = stats.playerData;
         const getHigh = (k) => Math.max(...allPlayers.map(p => pData[p][k]));
         const getLow = (k) => Math.min(...allPlayers.map(p => pData[p][k] === 999 ? 1000 : pData[p][k]));
-        const maxW = getHigh('wins'), maxL = getHigh('losses'), maxSH = getHigh('shCount'), maxWS = getHigh('maxWinStreak'), worstSH = getHigh('worstSHScore'), bestW = getLow('lowWin'), worstL = getHigh('highLoss');
+        
+        const maxW = getHigh('wins');
+        const maxL = getHigh('losses');
+        const maxSH = getHigh('shCount');
+        const minSH = Math.min(...allPlayers.map(p => pData[p].shCount)); // Corrected to find actual minimum
+        const maxWS = getHigh('maxWinStreak');
+        const maxLS = getHigh('maxLossStreak');
+        const worstSH = getHigh('worstSHScore');
+        const bestW = getLow('lowWin');
+        const worstL = getHigh('highLoss');
+        const maxCuts = getHigh('cuts');
+        const minCuts = Math.min(...allPlayers.map(p => pData[p].cuts)); // Corrected to find actual minimum
 
-        let html = `<table><thead><tr><th class="sticky-col">Player</th><th>Wins</th><th>Losses</th><th>W-Streak</th><th>Most SH</th><th id="shHeader" class="clickable-header">Worst SH</th><th id="cutHeader" class="clickable-header">Cuts</th><th id="winHeader" class="clickable-header">Low Win</th><th id="lossHeader" class="clickable-header">High Loss</th><th id="timeHeader" class="clickable-header">Short/Long</th></tr></thead><tbody>`;
+        let html = `<table><thead><tr><th class="sticky-col">Player</th><th>Wins</th><th>Losses</th><th>W-Streak</th><th>L-Streak</th><th>Most SH</th><th id="shHeader" class="clickable-header">Worst SH</th><th id="cutHeader" class="clickable-header">Cuts</th><th id="winHeader" class="clickable-header">Low Win</th><th id="lossHeader" class="clickable-header">High Loss</th><th id="timeHeader" class="clickable-header">Short/Long</th></tr></thead><tbody>`;
         allPlayers.forEach(p => {
             const d = pData[p]; const sTime = stats.gameTimes.length ? Math.min(...stats.gameTimes.map(t => t.time)) : 0; const lTime = stats.gameTimes.length ? Math.max(...stats.gameTimes.map(t => t.time)) : 0;
-            html += `<tr><td class="sticky-col">${p}</td><td class="${d.wins === maxW && maxW > 0 ? 'stat-best' : ''}">${d.wins}</td><td class="${d.losses === maxL && maxL > 0 ? 'stat-worst' : ''}">${d.losses}</td><td class="${d.maxWinStreak === maxWS && maxWS > 1 ? 'stat-best' : ''}">${d.maxWinStreak}</td><td>${d.shCount}</td><td>${d.worstSHScore}</td><td class="player-cut-cell clickable-header" data-player="${p}">${d.cuts}</td><td>${d.lowWin === 999 ? '-' : d.lowWin}</td><td>${d.highLoss}</td><td>${formatS(sTime)} / ${formatS(lTime)}</td></tr>`;
+            html += `<tr><td class="sticky-col">${p}</td><td class="${d.wins === maxW && maxW > 0 ? 'stat-best' : ''}">${d.wins}</td><td class="${d.losses === maxL && maxL > 0 ? 'stat-worst' : ''}">${d.losses}</td><td class="${d.maxWinStreak === maxWS && maxWS > 1 ? 'stat-best' : ''}">${d.maxWinStreak}</td><td class="${d.maxLossStreak === maxLS && maxLS > 1 ? 'stat-worst' : ''}">${d.maxLossStreak}</td><td class="${d.shCount === maxSH && maxSH > 0 ? 'stat-worst' : (d.shCount === minSH && minSH !== Infinity ? 'stat-best' : '')}">${d.shCount}</td><td class="${d.worstSHScore === worstSH && worstSH > 0 ? 'stat-worst' : ''}">${d.worstSHScore}</td><td class="player-cut-cell clickable-header ${d.cuts === maxCuts && maxCuts > 0 ? 'stat-best' : (d.cuts === minCuts && minCuts !== Infinity ? 'stat-worst' : '')}" data-player="${p}">${d.cuts}</td><td class="${d.lowWin === bestW && bestW !== 999 ? 'stat-best' : ''}">${d.lowWin === 999 ? '-' : d.lowWin}</td><td class="${d.highLoss === worstL && worstL > 0 ? 'stat-worst' : ''}">${d.highLoss}</td><td>${formatS(sTime)} / ${formatS(lTime)}</td></tr>`;
         });
         cont.innerHTML = html + `</tbody></table>`;
+        
         document.querySelectorAll('.player-cut-cell').forEach(cell => { cell.onclick = () => { const p = cell.dataset.player; const b = stats.playerData[p].cutBreakdown || {}; openPopup(`${p}'s Cuts`, Object.keys(b).filter(k => b[k] > 0).map(k => `${k}: ${b[k]}`)); }; });
-        document.getElementById('shHeader').onclick = () => openPopup("Shanghai History", stats.historySH.map(i => `${i.name}: ${i.score}`));
+        // Changed to sort highest to lowest for Worst SH
+        document.getElementById('shHeader').onclick = () => openPopup("Shanghai History", [...stats.historySH].sort((a,b) => b.score - a.score).map(i => `${i.name}: ${i.score}`));
         document.getElementById('cutHeader').onclick = () => openPopup("Global Cuts", Object.keys(stats.cutBreakdown).filter(k => stats.cutBreakdown[k] > 0).map(k => `${k}: ${stats.cutBreakdown[k]}`));
-        document.getElementById('winHeader').onclick = () => openPopup("Wins", stats.historyWins.map(i => `${i.name}: ${i.total}`));
-        document.getElementById('lossHeader').onclick = () => openPopup("Losses", stats.historyLosses.map(i => `${i.name}: ${i.total}`));
+        document.getElementById('winHeader').onclick = () => openPopup("Wins", [...stats.historyWins].sort((a,b) => a.total - b.total).map(i => `${i.name}: ${i.total}`));
+        document.getElementById('lossHeader').onclick = () => openPopup("Losses", [...stats.historyLosses].sort((a,b) => b.total - a.total).map(i => `${i.name}: ${i.total}`));
         document.getElementById('timeHeader').onclick = () => openPopup("Game Times", stats.gameTimes.map(i => `${i.players}p: ${formatS(i.time)}`));
     }
 
     function renderGameHistory() {
-        const cont = document.getElementById('historyContainer'); const sorted = [...stats.fullGames].sort((a,b) => b.timestamp - a.timestamp);
-        cont.innerHTML = sorted.map(g => `<div class="game-history-entry"><button class="delete-game-btn" onclick="deleteGame(${g.timestamp})">X</button><div onclick='showGameDetails(${JSON.stringify(g)})'><strong>${g.date}</strong>${[...g.scores].sort((a,b)=>a.total-b.total).map((s,i) => `<div style="${i==0?'color:var(--accent)':''}">${s.name}: ${s.total}</div>`).join('')}</div></div>`).join('');
+        const cont = document.getElementById('historyContainer');
+        const sortedGames = [...stats.fullGames].sort((a,b) => b.timestamp - a.timestamp);
+
+        cont.innerHTML = sortedGames.map(g => {
+            const sortedScores = [...g.scores].sort((a,b) => a.total - b.total);
+            const winner = sortedScores[0];
+            const loser = sortedScores[sortedScores.length - 1]; // This is the player with the highest score
+
+            const scoreHtml = sortedScores.map(s => {
+                let style = '';
+                if (s.name === winner.name) {
+                    style = 'color:var(--accent)'; // Winner is green
+                } else if (s.name === loser.name) {
+                    style = 'color:var(--danger)'; // Loser is red
+                }
+                return `<div style="${style}">${s.name}: ${s.total}</div>`;
+            }).join('');
+
+            return `<div class="game-history-entry">
+                        <button class="delete-game-btn" onclick="deleteGame(${g.timestamp})">X</button>
+                        <div onclick='showGameDetails(${JSON.stringify(g)})'>
+                            <strong>${g.date}</strong>
+                            ${scoreHtml}
+                        </div>
+                    </div>`;
+        }).join('');
     }
 
     window.showGameDetails = (game) => {
@@ -387,7 +438,7 @@
     document.getElementById('kpEnterBtn').onclick = () => { const cell = document.getElementById(`cell-${activeCell.r}-${activeCell.i}`); cell.innerText = kpVal || "0"; if(kpSh) cell.classList.add('sh-cell'); else cell.classList.remove('sh-cell'); document.getElementById('keypadModal').classList.add('hidden'); calculate(); };
     document.querySelectorAll('.kp-num').forEach(b => b.onclick = () => { kpVal += b.dataset.val; document.getElementById('kpDisplay').innerText = kpVal; });
     document.getElementById('kpClearBtn').onclick = () => { kpVal = ""; document.getElementById('kpDisplay').innerText = "0"; };
-    document.getElementById('kpShBtn').onclick = () => { kpSh = !kpSh; document.getElementById('kpShBtn').style.background = kpSh ? 'red' : 'var(--warning)'; };
+    document.getElementById('kpShBtn').onclick = () => { kpSh = !kpSh; document.getElementById('kpShBtn').style.setProperty('background', kpSh ? 'red' : 'var(--warning)', 'important'); };
     function formatS(s) { return `${Math.floor(s/60)}m ${s%60}s`; }
     function closePopups() { document.getElementById('overlay').classList.add('hidden'); document.getElementById('detailPopup').classList.add('hidden'); }
     function openPopup(t, i) { document.getElementById('popupTitle').innerText = t; document.getElementById('popupContent').innerHTML = ''; document.getElementById('popupList').innerHTML = i.map(x => `<li>${x}</li>`).join(''); document.getElementById('overlay').classList.remove('hidden'); document.getElementById('detailPopup').classList.remove('hidden'); }
